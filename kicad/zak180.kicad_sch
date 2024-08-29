@@ -2223,6 +2223,16 @@
 		)
 		(uuid "4461be60-a85c-4390-85c0-2036df859123")
 	)
+	(wire
+		(pts
+			(xy 57.15 71.12) (xy 69.85 71.12)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "446460ef-891a-41c8-92b8-379384650ef6")
+	)
 	(bus
 		(pts
 			(xy 93.98 24.13) (xy 137.16 24.13)
@@ -2793,16 +2803,6 @@
 		)
 		(uuid "9ccb0104-9e9d-471d-ac0a-e458c1da318d")
 	)
-	(wire
-		(pts
-			(xy 57.15 73.66) (xy 69.85 73.66)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "9cf64664-8a68-4a9e-9915-981e91d40102")
-	)
 	(bus
 		(pts
 			(xy 229.87 114.3) (xy 242.57 114.3)
@@ -2822,16 +2822,6 @@
 			(type default)
 		)
 		(uuid "9e0fba57-0f9f-4a8f-8b82-0aee656f76cd")
-	)
-	(wire
-		(pts
-			(xy 57.15 71.12) (xy 69.85 71.12)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "9f6af007-369e-4707-aa2a-69bdabd910dc")
 	)
 	(wire
 		(pts
@@ -3382,6 +3372,16 @@
 			(type default)
 		)
 		(uuid "e073f0db-88f2-46b9-baae-01e499b4b4df")
+	)
+	(wire
+		(pts
+			(xy 57.15 73.66) (xy 69.85 73.66)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "e17b0d5c-716c-4662-870e-70adb2b78b47")
 	)
 	(wire
 		(pts
@@ -5037,7 +5037,7 @@
 			)
 			(uuid "29e01876-527e-401c-8921-bac42a7109ff")
 		)
-		(pin "RX1" output
+		(pin "TX1" input
 			(at 57.15 71.12 0)
 			(effects
 				(font
@@ -5045,9 +5045,9 @@
 				)
 				(justify right)
 			)
-			(uuid "f9b433cd-f943-45f9-a817-7cb4dcf572ff")
+			(uuid "991a76cf-a9de-4e69-a367-67d472e19e9f")
 		)
-		(pin "TX1" input
+		(pin "RX1" output
 			(at 57.15 73.66 0)
 			(effects
 				(font
@@ -5055,7 +5055,7 @@
 				)
 				(justify right)
 			)
-			(uuid "ef28798d-7bbc-469c-9a76-a6788f1773dc")
+			(uuid "e429e904-1c8a-41c3-80fc-f9bc21f7af52")
 		)
 		(instances
 			(project "zak180"
