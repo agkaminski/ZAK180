@@ -1,5 +1,7 @@
 # ZAK180 computer
 
+Work in progress
+
 ## Features
 
 - Z180 CPU,
