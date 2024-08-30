@@ -1,2 +1,15 @@
 *.bak
 *.zip
+*.bin
+*.lk
+*.map
+*.mem
+*.lst
+*.rel
+*.rst
+*.sym
+*.asm
+*.ihx
+*.noi
+*.hex
+*.lib
