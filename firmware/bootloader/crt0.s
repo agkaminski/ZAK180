@@ -2,11 +2,11 @@
 .globl _main
 .z180
 
-CBR =    0x38 ; common 1 base register
-BBR =    0x39 ; bank base register
-CBAR =   0x3A ; logical memory layout, bank on low nibble
+CBR =    0x0038 ; common 1 base register
+BBR =    0x0039 ; bank base register
+CBAR =   0x003A ; logical memory layout, bank on low nibble
 
-ROMDIS = 0x60 ; ROM disable/enable control register
+ROMDIS = 0x0060 ; ROM disable/enable control register
 
 ;; This code has to be position independent!
 ;; We'll be jumping a lot around the place
@@ -22,11 +22,11 @@ ROMDIS = 0x60 ; ROM disable/enable control register
 ;;
 ;; Desired memory layout (logical):
 ;; Common 0: not used, leave as kernel entry point
-;; 8 KB, 0x0000 -> 0x1FFF (0x00000 -> 0x01FFF)
+;; 16 KB, 0x0000 -> 0x3FFF (0x00000 -> 0x03FFF)
 ;; Bank:     Bootloader code and data (high RAM)
-;; 24 KB, 0x2000 -> 0x7FFF (0xF2000 -> 0xF7FFF)
+;; 32 KB, 0x4000 -> 0xBFFF (0xE4000 -> 0xEBFFF)
 ;; Common 1: memory access window
-;; 32 KB, 0x8000 -> 0xFFFF (mapped as needed)
+;; 16 KB, 0xC000 -> 0xFFFF (mapped as needed)
 
 			; We're actually @0x0000, but we need to trick
 			; the linker to think otherwise to keep binary
@@ -34,30 +34,30 @@ ROMDIS = 0x60 ; ROM disable/enable control register
 			; .org CODE_LOC
 
 			; Setup logical layout
-			ld a, #0x86
+			ld a, #0xC4
 			out0 (#CBAR), a
 
 			; Select high RAM for bank
-			ld a, #0xF0
-			out0 (#CBR), a
-
-			; Select low RAM for common1
-			ld a, #0
+			ld a, #0xE0
 			out0 (#BBR), a
+
+			; Select ROM for common1
+			ld a, #0x00
+			out0 (#CBR), a
 
 			; Now we have access to the desired bootloader
 			; location in bank and window to the ROM in
 			; common1. We need to copy ROM to the high RAM
 			; and disable ROM /CS.
 
-			ld hl, #0x2000    ; Destination
-			ld de, #0x8000    ; Source
+			ld de, #0x4000    ; Destination
+			ld hl, #0x0000    ; Source
 			ld bc, #16 * 1024 ; Count, ROM size
 			ldir              ; Copy memory
 
 			; Now jump into copied ROM to the high RAM
 			; We're compiled onto destination addresses,
-			; so simple absolute JMP will do the trick.
+			; so simple absolute jump will do the trick.
 
 			jp high_ram
 high_ram:
@@ -65,8 +65,11 @@ high_ram:
 			; PIC code anymore. Do a normal init.
 
 			; Disable ROM /CS line, allow to use low RAM.
-			ld a, #0
+			ld a, #0xFF
 			out0 (ROMDIS), a
+
+			; Setup stack
+			ld sp, #0xC000
 
 			; TODO init
 
