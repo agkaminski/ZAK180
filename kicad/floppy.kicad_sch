@@ -5889,7 +5889,7 @@
 		)
 		(uuid c0516b5c-9779-41df-a0c9-8cabc7b673c6)
 	)
-	(text_box "Ident/MFM\n\n00 - invalid\n01 - AT mode\n10 - Model 30\n11 - PS/2\n\nPS/2 mode selected"
+	(text_box "Ident/MFM\n\n00 - invalid\n01 - AT mode\n10 - Model 30\n11 - PS/2\n\nAT mode selected"
 		(exclude_from_sim no)
 		(at 43.18 86.36 0)
 		(size 22.86 17.78)
