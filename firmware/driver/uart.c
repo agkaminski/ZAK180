@@ -101,10 +101,10 @@ void uart_init(void)
 	/* Both UARTs @19200 baud 8n1 */
 	CNTLB0 = 0x01;
 	CNTLB1 = 0x01;
-	CNTLA0 = 0x74;
-	CNTLA1 = 0x74;
+	CNTLA0 = 0x64;
+	CNTLA1 = 0x64;
 
 	/* Enable interrupts */
-	STAT0 = 0x09;
-	STAT1 = 0x09;
+	//STAT0 = 0x09;
+	//STAT1 = 0x09;
 }

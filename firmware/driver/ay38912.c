@@ -27,6 +27,5 @@ void ay38912_writePort(unsigned char byte)
 void ay38912_setPort(unsigned char dir)
 {
 	AY_LATCH = 7;
-	t = AY_READ | (!!dir << 6);
-	AY_WRITE = t;
+	AY_WRITE = AY_READ | (!!dir << 6);
 }
