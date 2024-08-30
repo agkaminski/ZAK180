@@ -3,47 +3,24 @@
 
 #include "../driver/uart.h"
 
-void uart_puts(const char *str)
+int putchar(int c)
 {
-	uart1_write_poll(str, strlen(str));
+	char t = c;
+
+	uart1_write_poll(&t, 1);
+
+	return 1;
 }
+
+int data = 5;
+int bss;
 
 int main(void)
 {
-	volatile unsigned char *ptr = (void *)0;
-	int i;
-	char buff[32];
-
 	uart_init();
 
-	for (i = 0; i < 0x2000; ++i) {
-		sprintf(buff, "Checking addr 0x%04x\r\n", i);
-		uart_puts(buff);
-
-		ptr[i] = 0;
-		if (ptr[i] != 0) {
-			break;
-		}
-		ptr[i] = 0x55;
-		if (ptr[i] != 0x55) {
-			break;
-		}
-		ptr[i] = 0xaa;
-		if (ptr[i] != 0xaa) {
-			break;
-		}
-		ptr[i] = 0xff;
-		if (ptr[i] != 0xff) {
-			break;
-		}
-	}
-
-	if (i != 0x2000) {
-		uart_puts("FAIL\r\n");
-	}
-	else {
-		uart_puts("SUCCESS\r\n");
-	}
+	printf("data = %d, 0x%p\r\n", data, &data);
+	printf("bss = %d, 0x%p\r\n", bss, &bss);
 
 	return 0;
 }
