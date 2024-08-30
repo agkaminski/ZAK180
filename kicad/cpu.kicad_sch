@@ -9245,7 +9245,7 @@
 		)
 		(uuid "1daca7f0-e022-4c3c-81a0-e98eeed28db1")
 	)
-	(label "A5"
+	(label "A7"
 		(at 146.05 58.42 0)
 		(fields_autoplaced yes)
 		(effects
@@ -9608,7 +9608,7 @@
 		)
 		(uuid "ed99971c-d7ee-4973-a17c-8eac72490c0c")
 	)
-	(label "A7"
+	(label "A5"
 		(at 146.05 53.34 0)
 		(fields_autoplaced yes)
 		(effects

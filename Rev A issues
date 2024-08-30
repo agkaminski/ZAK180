@@ -1,2 +1,6 @@
-- swapped RX1 and TX1
+- swapped RX1 and TX1, swap IC1 pins 53 and 54
 - C28, C29, C54 and C55 need more reasonalbe footprints
+- I/O decoder address (U8) inputs should be other way around,
+  swap pin 1 with 3
+- ROM disable circuit can be simplified, U27A can be removed
+  and ROM disable signal can be routed to U20 pin 3 instead
