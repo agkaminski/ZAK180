@@ -9,7 +9,7 @@ LDFLAGS = --code-loc ${CODE} --data-loc ${DATA} --no-std-crt0
 
 SRC = main.c
 OBJ = crt0.rel $(SRC:.c=.rel)
-LIB = uart.lib
+LIB = uart.lib floppy.lib
 
 .PHONY: clean
 
@@ -22,7 +22,7 @@ ${TARGET}.hex: ${OBJ} ${LIB}
 	sdcc -o ${TARGET}.hex -l ${LIB} ${CFLAGS} ${LDFLAGS} ${OBJ}
 
 ${LIB}:
-	@cd ../driver && $(MAKE) clean all --no-print-directory
+	cd ../driver && $(MAKE) clean all --no-print-directory
 
 %.rel: %.c
 	sdcc ${CFLAGS} -c "$<"
@@ -31,5 +31,6 @@ ${LIB}:
 	sdasz80 -l -o -s "$<"
 
 clean:
-	@rm -f *.bin *.lk *.map *.mem *.lst *.rel *.rst *.sym *.asm *.ihx *.noi *.hex
+	rm -f *.bin *.lk *.map *.mem *.lst *.rel *.rst *.sym *.asm *.ihx *.noi *.hex
+	cd ../driver && $(MAKE) clean
 

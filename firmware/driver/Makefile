@@ -1,6 +1,6 @@
 .PHONY: clean
 
-all: ay38912.lib mmu.lib uart.lib vga.lib
+all: ay38912.lib mmu.lib uart.lib vga.lib floppy.lib
 
 ay38912.lib: ay38912.rel
 	sdar -q "$@" "$<"
@@ -14,8 +14,11 @@ uart.lib: uart.rel
 vga.lib: vga.rel
 	sdar -q "$@" "$<"
 
+floppy.lib: floppy.rel
+	sdar -q "$@" "$<"
+
 %.rel: %.c
 	sdcc -mz180 -c "$<"
 
 clean:
-	@rm -f *.lib *.lk *.map *.mem *.lst *.rel *.rst *.sym *.asm *.ihx *.noi *.hex
+	rm -f *.lib *.lk *.map *.mem *.lst *.rel *.rst *.sym *.asm *.ihx *.noi *.hex

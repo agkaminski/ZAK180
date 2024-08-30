@@ -1,7 +1,14 @@
+/* ZAK180 Firmaware
+ * Bootloader main
+ * Copyright: Aleksander Kaminski, 2024
+ * See LICENSE.md
+ */
+
 #include <string.h>
 #include <stdio.h>
 
 #include "../driver/uart.h"
+#include "../driver/floppy.h"
 
 int putchar(int c)
 {
@@ -12,15 +19,15 @@ int putchar(int c)
 	return 1;
 }
 
-int data = 5;
-int bss;
-
 int main(void)
 {
 	uart_init();
 
-	printf("data = %d, 0x%p\r\n", data, &data);
-	printf("bss = %d, 0x%p\r\n", bss, &bss);
+	floppy_dumpregs();
+
+	floppy_init();
+
+	floppy_dumpregs();
 
 	return 0;
 }
