@@ -7,22 +7,32 @@
 #include <stdio.h>
 #include <stdint.h>
 
+#include <z180/z180.h>
+
 #include "floppy.h"
+
+#define DEBUG(fmt, ...) printf(fmt "\r\n", ##__VA_ARGS__)
 
 /* 82077 on ZAK180 is in AT mode */
 
 /* Registers */
 __sfr __at(0xE2) DOR;  /* Digital Output Register */
 __sfr __at(0xE4) MSR;  /* Main Status Register (RO) */
-__sfr __at(0xE4) DSR;  /* Data Rate Select Register (WO) */
 __sfr __at(0xE5) FIFO; /* Data Register (FIFO)*/
 __sfr __at(0xE7) DIR;  /* Digital Input Register (RO) */
+__sfr __at(0xE7) CCR;  /* Configuration Control Register (WO) */
 
-#define DOR_SELECT_NONE 0x40
-#define DOR_SELECT_0    0x1C
-#define DOR_SELECT_1    0x2D
-#define DOR_SELECT_2    0x4E
-#define DOR_SELECT_3    0x8F
+//#define DOR_SELECT_NONE 0x0C
+//#define DOR_SELECT_0    0x1C
+//#define DOR_SELECT_1    0x2D
+//#define DOR_SELECT_2    0x4E
+//#define DOR_SELECT_3    0x8F
+
+#define DOR_SELECT_NONE 0x04
+#define DOR_SELECT_0    0x14
+#define DOR_SELECT_1    0x25
+#define DOR_SELECT_2    0x46
+#define DOR_SELECT_3    0x87
 
 #define MSR_RQM       (1 << 7)
 #define MSR_DIO       (1 << 6)
@@ -33,12 +43,14 @@ __sfr __at(0xE7) DIR;  /* Digital Input Register (RO) */
 #define MSR_DRV1_BUSY (1 << 1)
 #define MSR_DRV0_BUSY (1 << 0)
 
-#define DSR_HD144 0 /* 500 kbit/s, default precompensation */
+#define CCR_HD144 0 /* 500 kbit/s, default precompensation */
 
 #define DIR_DSKCHG (1 << 7)
 
 #define EOT 0x12
 #define GAP 0x18
+
+#define DRIVE_NO 1
 
 struct cmd_result {
 	uint8_t st0;
@@ -55,7 +67,7 @@ void floppy_dumpregs(void)
 	printf("82077 registers:\r\n");
 	printf("DOR  (0xE2): 0x%02x\r\n", DOR);
 	printf("MSR  (0xE4): 0x%02x\r\n", MSR);
-	printf("FIFO (0xE5): 0x%02x\r\n", FIFO);
+	//printf("FIFO (0xE5): 0x%02x\r\n", FIFO);
 	printf("DIR  (0xE7): 0x%02x\r\n", DIR);
 }
 
@@ -64,12 +76,9 @@ static int floppy_fifo_write(uint8_t data)
 	uint8_t msr;
 
 	/* TODO add timeout */
-	while (!((msr = MSR) & MSR_RQM));
-
-	if (msr & MSR_DIO) {
-		/* Controller expects read, error */
-		return -1;
-	}
+	do {
+		msr = MSR;
+	} while ((msr & 0xc0) != 0x80);
 
 	FIFO = data;
 
@@ -81,14 +90,13 @@ static int floppy_fifo_read(uint8_t *data)
 	uint8_t msr;
 
 	/* TODO add timeout */
-	while (!((msr = MSR) & MSR_RQM));
-
-	if (!(msr & MSR_DIO)) {
-		/* Controller expects write, error */
-		return -1;
-	}
+	do {
+		msr = MSR;
+	} while ((msr & (uint8_t)0xc0) != 0xc0);
 
 	*data = FIFO;
+
+	//printf("%02x ", *data);
 
 	return 0;
 }
@@ -123,98 +131,59 @@ static int floppy_read_result(struct cmd_result *res)
 		return -1;
 	}
 
+	printf("st0: %02x\r\n", res->st0);
+	printf("st1: %02x\r\n", res->st1);
+	printf("st2: %02x\r\n", res->st2);
+
 	return 0;
 }
 
-int floppy_cmd_read_data(uint8_t c, uint8_t h, uint8_t r, uint8_t drive, uint8_t *buff, struct cmd_result *res)
+static int floppy_write_cmd(uint8_t *cmd, uint8_t len)
 {
-	/* MT = 0, MFM = 1, SK = 0 */
-	if (floppy_fifo_write(0x46) < 0) {
-		return -1;
-	}
-
-	if (floppy_fifo_write((h << 2) | drive) < 0) {
-		return -1;
-	}
-
-	if (floppy_fifo_write(c) < 0) {
-		return -1;
-	}
-
-	if (floppy_fifo_write(h) < 0) {
-		return -1;
-	}
-
-	if (floppy_fifo_write(r) < 0) {
-		return -1;
-	}
-
-	/* Sector size code for 512 B */
-	if (floppy_fifo_write(2) < 0) {
-		return -1;
-	}
-
-	if (floppy_fifo_write(EOT) < 0) {
-		return -1;
-	}
-
-	if (floppy_fifo_write(GAP) < 0) {
-		return -1;
-	}
-
-	/* DTL, not used */
-	if (floppy_fifo_write(0xFF) < 0) {
-		return -1;
-	}
-
-	/* Now we read data */
-	for (size_t i = 0; i < 512; ++i) {
-		if (floppy_fifo_read(buff + i) < 0) {
+	for (uint8_t i = 0; i < len; ++i) {
+		if (floppy_fifo_write(cmd[i]) < 0) {
 			return -1;
 		}
 	}
 
+	return 0;
+}
+
+static void floppy_sector_read(uint8_t *buff)
+{
+	for (uint16_t i = 0; i < 512; ++i) {
+		while ((MSR & (uint8_t)0xc0) != 0xc0);
+		buff[i] = FIFO;
+	}
+}
+
+int floppy_cmd_read_data(uint8_t c, uint8_t h, uint8_t r, uint8_t *buff, struct cmd_result *res)
+{
+	uint8_t cmd[] = { 0x46, ((h << 2) | DRIVE_NO), c, h, r, 2, EOT, GAP, 0xFF };
+
+	DEBUG("Floppy CMD Read Data");
+
+	if (floppy_write_cmd(cmd, sizeof(cmd)) < 0) {
+		return -1;
+	}
+
+	floppy_sector_read(buff);
+
+	printf("dupa\r\n");
+
+	/* Cause overrun */
+	for (volatile unsigned int i = 1; i != 0; ++i);
+
 	return floppy_read_result(res);
 }
 
-int floppy_cmd_write_data(uint8_t c, uint8_t h, uint8_t r, uint8_t drive, const uint8_t *buff, struct cmd_result *res)
+int floppy_cmd_write_data(uint8_t c, uint8_t h, uint8_t r, const uint8_t *buff, struct cmd_result *res)
 {
-	/* MT = 0, MFM = 1, SK = 0 */
-	if (floppy_fifo_write(0x45) < 0) {
-		return -1;
-	}
+	uint8_t cmd[] = { 0x45, ((h << 2) | DRIVE_NO), c, h, r, 2, EOT, GAP, 0xFF };
 
-	if (floppy_fifo_write((h << 2) | drive) < 0) {
-		return -1;
-	}
+	DEBUG("Floppy CMD write data");
 
-	if (floppy_fifo_write(c) < 0) {
-		return -1;
-	}
-
-	if (floppy_fifo_write(h) < 0) {
-		return -1;
-	}
-
-	if (floppy_fifo_write(r) < 0) {
-		return -1;
-	}
-
-	/* Sector size code for 512 B */
-	if (floppy_fifo_write(2) < 0) {
-		return -1;
-	}
-
-	if (floppy_fifo_write(EOT) < 0) {
-		return -1;
-	}
-
-	if (floppy_fifo_write(GAP) < 0) {
-		return -1;
-	}
-
-	/* DTL, not used */
-	if (floppy_fifo_write(0xFF) < 0) {
+	if (floppy_write_cmd(cmd, sizeof(cmd)) < 0) {
 		return -1;
 	}
 
@@ -228,52 +197,10 @@ int floppy_cmd_write_data(uint8_t c, uint8_t h, uint8_t r, uint8_t drive, const 
 	return floppy_read_result(res);
 }
 
-int floppy_cmd_verify(uint8_t c, uint8_t h, uint8_t r, uint8_t drive, struct cmd_result *res)
-{
-	/* MT = 0, MFM = 1, SK = 0 */
-	if (floppy_fifo_write(0x56) < 0) {
-		return -1;
-	}
-
-	if (floppy_fifo_write((h << 2) | drive) < 0) {
-		return -1;
-	}
-
-	if (floppy_fifo_write(c) < 0) {
-		return -1;
-	}
-
-	if (floppy_fifo_write(h) < 0) {
-		return -1;
-	}
-
-	if (floppy_fifo_write(r) < 0) {
-		return -1;
-	}
-
-	/* Sector size code for 512 B */
-	if (floppy_fifo_write(2) < 0) {
-		return -1;
-	}
-
-	if (floppy_fifo_write(EOT) < 0) {
-		return -1;
-	}
-
-	if (floppy_fifo_write(GAP) < 0) {
-		return -1;
-	}
-
-	/* DTL, not used */
-	if (floppy_fifo_write(0xFF) < 0) {
-		return -1;
-	}
-
-	return floppy_read_result(res);
-}
-
 int floppy_cmd_version(uint8_t *version)
 {
+	DEBUG("Floppy CMD version");
+
 	if (floppy_fifo_write(0x10) < 0) {
 		return -1;
 	}
@@ -285,13 +212,15 @@ int floppy_cmd_version(uint8_t *version)
 	return 0;
 }
 
-int floppy_cmd_recalibrate(uint8_t drive)
+int floppy_cmd_recalibrate(void)
 {
+	DEBUG("Floppy CMD recalibrate");
+
 	if (floppy_fifo_write(0x07) < 0) {
 		return -1;
 	}
 
-	if (floppy_fifo_write(drive) < 0) {
+	if (floppy_fifo_write(DRIVE_NO) < 0) {
 		return -1;
 	}
 
@@ -300,12 +229,18 @@ int floppy_cmd_recalibrate(uint8_t drive)
 
 int floppy_cmd_sense_interrupt(uint8_t *st0, uint8_t *pcn)
 {
+	DEBUG("Floppy CMD sense interrupt");
+retry:
 	if (floppy_fifo_write(0x08) < 0) {
 		return -1;
 	}
 
 	if (floppy_fifo_read(st0) < 0) {
 		return -1;
+	}
+
+	if (*st0 == 0x80) {
+		goto retry;
 	}
 
 	if (floppy_fifo_read(pcn) < 0) {
@@ -317,49 +252,24 @@ int floppy_cmd_sense_interrupt(uint8_t *st0, uint8_t *pcn)
 
 int floppy_cmd_specify(uint8_t srt, uint8_t hut, uint8_t hlt, uint8_t nd)
 {
-	if (floppy_fifo_write(0x08) < 0) {
-		return -1;
-	}
+	uint8_t cmd[] = { 0x03, ((srt << 4) | hut), ((hlt << 1) | nd) };
 
-	if (floppy_fifo_write((srt << 4) | hut) < 0) {
-		return -1;
-	}
+	DEBUG("Floppy CMD specify");
 
-	if (floppy_fifo_write((hlt << 1) | nd) < 0) {
+	if (floppy_write_cmd(cmd, sizeof(cmd)) < 0) {
 		return -1;
 	}
 
 	return 0;
 }
 
-int floppy_cmd_sense_drive_status(uint8_t h, uint8_t drive, uint8_t *status)
+int floppy_cmd_seek(uint8_t c)
 {
-	if (floppy_fifo_write(0x04) < 0) {
-		return -1;
-	}
+	uint8_t cmd[] = { 0x0F, DRIVE_NO, c };
 
-	if (floppy_fifo_write((h << 2) | drive) < 0) {
-		return -1;
-	}
+	DEBUG("Floppy CMD seek");
 
-	if (floppy_fifo_read(status) < 0) {
-		return -1;
-	}
-
-	return 0;
-}
-
-int floppy_cmd_seek(uint8_t c, uint8_t h, uint8_t drive)
-{
-	if (floppy_fifo_write(0x0F) < 0) {
-		return -1;
-	}
-
-	if (floppy_fifo_write((h << 2) | drive) < 0) {
-		return -1;
-	}
-
-	if (floppy_fifo_write(c) < 0) {
+	if (floppy_write_cmd(cmd, sizeof(cmd)) < 0) {
 		return -1;
 	}
 
@@ -368,21 +278,11 @@ int floppy_cmd_seek(uint8_t c, uint8_t h, uint8_t drive)
 
 int floppy_cmd_configure(uint8_t eis, uint8_t poll, uint8_t fifothr)
 {
-	if (floppy_fifo_write(0x13) < 0) {
-		return -1;
-	}
+	uint8_t cmd[] = { 0x13, 0x00, ((eis << 6) | (poll << 4) | fifothr), 0x00 };
 
-	if (floppy_fifo_write(0x00) < 0) {
-		return -1;
-	}
+	DEBUG("Floppy CMD configure");
 
-	/* EFIFO = 1 */
-	if (floppy_fifo_write((eis << 6) | (1 << 5) | (poll << 4) | fifothr) < 0) {
-		return -1;
-	}
-
-	/* PRETRK */
-	if (floppy_fifo_write(0x00) < 0) {
+	if (floppy_write_cmd(cmd, sizeof(cmd)) < 0) {
 		return -1;
 	}
 
@@ -392,6 +292,8 @@ int floppy_cmd_configure(uint8_t eis, uint8_t poll, uint8_t fifothr)
 int floppy_cmd_dumpreg(void)
 {
 	uint8_t buff[10];
+
+	DEBUG("Floppy CMD dumpreg");
 
 	/* Stricly for debug */
 	if (floppy_fifo_write(0x0E) < 0) {
@@ -406,28 +308,17 @@ int floppy_cmd_dumpreg(void)
 
 	printf("82077 dump regs:\r\n");
 	for (size_t i = 0; i < 10; ++i) {
-		printf("%zu: 0x%02x\r\n", buff[i]);
+		printf("%zu: 0x%02x\r\n", i, buff[i]);
 	}
 
 	return 0;
 }
 
-int floppy_cmd_read_id(uint8_t h, uint8_t drive, struct cmd_result *res)
-{
-	if (floppy_fifo_write(0x45) < 0) {
-		return -1;
-	}
-
-	if (floppy_fifo_write((h << 2) | drive) < 0) {
-		return -1;
-	}
-
-	return floppy_read_result(res);
-}
-
 int floppy_cmd_lock(uint8_t lock)
 {
 	uint8_t readback;
+
+	DEBUG("Floppy CMD lock");
 
 	if (floppy_fifo_write((lock << 7) | 0x14) < 0) {
 		return -1;
@@ -444,27 +335,30 @@ int floppy_cmd_lock(uint8_t lock)
 	return 0;
 }
 
-int floppy_cmd_powerdown_mode(uint8_t enable)
+static void floppy_enable(int8_t enable)
 {
-	uint8_t readback;
+	uint8_t dorval[] = {
+		DOR_SELECT_0,
+		DOR_SELECT_1,
+		DOR_SELECT_2,
+		DOR_SELECT_3
+	};
 
-	if (floppy_fifo_write(0x17) < 0) {
-		return -1;
+	DOR = enable ? dorval[DRIVE_NO] : DOR_SELECT_NONE;
+}
+
+uint8_t sector[512];
+struct cmd_result res;
+
+static void dump(size_t base)
+{
+	for (size_t i = 0; i < 512; i += 16) {
+		printf("%04x: ", i + (base * 512));
+		for (size_t j = 0; j < 16; ++j) {
+			printf("%02x ", sector[i + j]);
+		}
+		printf("\r\n");
 	}
-
-	if (floppy_fifo_write(0x02 | enable) < 0) {
-		return -1;
-	}
-
-	if (floppy_fifo_read(&readback) < 0) {
-		return -1;
-	}
-
-	if (readback ^ (0x02 | enable)) {
-		return -1;
-	}
-
-	return 0;
 }
 
 void floppy_init(void)
@@ -472,20 +366,48 @@ void floppy_init(void)
 	uint8_t st0, pcn;
 
 	/* Bring out of reset */
-	DOR = 0x0C;
+	for (volatile unsigned int i = 1; i != 0; ++i);
+	DOR = DOR_SELECT_NONE;
 
 	/* Poll MSR until ready */
 	while (MSR != 0x80);
 
-	DSR = DSR_HD144;
+	for (volatile unsigned int i = 1; i != 0; ++i);
+	for (volatile unsigned int i = 1; i != 0; ++i);
 
 	floppy_cmd_sense_interrupt(&st0, &pcn);
 	floppy_cmd_sense_interrupt(&st0, &pcn);
 	floppy_cmd_sense_interrupt(&st0, &pcn);
 	floppy_cmd_sense_interrupt(&st0, &pcn);
-	floppy_cmd_configure(1, 0, 1);
+
+	CCR = CCR_HD144;
+
+	floppy_cmd_configure(1, 1, 15);
 	floppy_cmd_lock(1);
-	floppy_cmd_specify(4, 64, 64, 1);
-	floppy_cmd_recalibrate(0);
-	floppy_cmd_recalibrate(1);
+	floppy_cmd_specify(12, 0, 2, 1);
+
+	floppy_enable(1);
+	for (volatile unsigned int i = 1; i != 0; ++i);
+
+	for (volatile unsigned int i = 1; i != 0; ++i);
+	floppy_cmd_recalibrate();
+	floppy_cmd_sense_interrupt(&st0, &pcn);
+
+	floppy_enable(0);
+
+	floppy_cmd_dumpreg();
+
+	floppy_enable(1);
+	for (volatile unsigned int i = 1; i != 0; ++i);
+
+	floppy_cmd_read_data(0, 0, 1, sector, &res);
+	dump(0);
+	floppy_cmd_read_data(0, 0, 2, sector, &res);
+	dump(1);
+	floppy_cmd_read_data(0, 0, 3, sector, &res);
+	dump(2);
+	floppy_cmd_read_data(0, 0, 4, sector, &res);
+	dump(3);
+
+	floppy_enable(0);
 }
