@@ -400,9 +400,6 @@ int floppy_cmd_reset(int warm)
 		floppy_cmd_enable(0);
 		return -1;
 	}
-
-	floppy_cmd_seek(0);
-
 	floppy_cmd_enable(0);
 
 	return 0;
