@@ -19,9 +19,13 @@ struct floppy_cmd_result {
 	uint8_t n;
 };
 
-int floppy_cmd_read_data(uint16_t lba, uint8_t *buff, struct floppy_cmd_result *res);
+#define FLOPPY_CMD_NO_CHANGE 0
+#define FLOPPY_CMD_CHANGE    -1
+#define FLOPPY_CMD_NO_MEDIA  -2
 
-int floppy_cmd_write_data(uint16_t lba, const uint8_t *buff, struct floppy_cmd_result *res);
+int floppy_cmd_read_data(uint8_t c, uint8_t h, uint8_t r, uint8_t *buff, struct floppy_cmd_result *res);
+
+int floppy_cmd_write_data(uint8_t c, uint8_t h, uint8_t r, const uint8_t *buff, struct floppy_cmd_result *res);
 
 int floppy_cmd_recalibrate(void);
 
@@ -29,8 +33,8 @@ int floppy_cmd_seek(uint8_t c);
 
 void floppy_cmd_enable(int8_t enable);
 
-int floppy_cmd_reset(int warm);
+int floppy_cmd_eject_status(void);
 
-void floppy_cmd_init(void);
+int floppy_cmd_reset(int warm);
 
 #endif

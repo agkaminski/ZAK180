@@ -8,7 +8,7 @@
 #include <stdio.h>
 
 #include "../driver/uart.h"
-#include "../driver/floppy_cmd.h"
+#include "../driver/floppy.h"
 
 int putchar(int c)
 {
@@ -20,7 +20,6 @@ int putchar(int c)
 }
 
 uint8_t sector[512];
-struct floppy_cmd_result res;
 
 
 static void dump(size_t base)
@@ -40,18 +39,20 @@ int main(void)
 
 	printf("ZAK180 Bootloader rev " VERSION "\r\n");
 
-	floppy_cmd_init();
+	if (floppy_init() < 0) {
+		printf("Floppy init fail\r\n");
+		return 1;
+	}
 
-	floppy_cmd_enable(1);
+	floppy_access(1);
 
 	for (uint16_t i = 0; i < 80 * 18 * 2; i += (18 * 2)) {
-		floppy_cmd_read_data(i, sector, &res);
-		printf("res: %02x %02x %02x %02x\r\n", res.st0, res.st1, res.st2, res.c);
+		int ret = floppy_read_sector(i, sector);
+		printf("res: %d\r\n", ret);
 		dump(i);
 	}
 
-	floppy_cmd_enable(0);
-
+	floppy_access(0);
 
 	return 0;
 }

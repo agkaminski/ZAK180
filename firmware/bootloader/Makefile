@@ -16,21 +16,22 @@ LIB = uart.lib floppy.lib
 all: ${TARGET}.bin
 
 ${TARGET}.bin: ${TARGET}.hex
-	objcopy -Iihex -Obinary ${TARGET}.hex ${TARGET}.bin
+	@objcopy -Iihex -Obinary ${TARGET}.hex ${TARGET}.bin
+	du -h ${TARGET}.bin
 
 ${TARGET}.hex: ${OBJ} ${LIB}
-	sdcc -o ${TARGET}.hex -l ${LIB} ${CFLAGS} ${LDFLAGS} ${OBJ}
+	@sdcc -o ${TARGET}.hex -l ${LIB} ${CFLAGS} ${LDFLAGS} ${OBJ}
 
 ${LIB}:
-	cd ../driver && $(MAKE) clean all --no-print-directory
+	@cd ../driver && $(MAKE) clean all --no-print-directory
 
 %.rel: %.c
-	sdcc ${CFLAGS} -c "$<"
+	@sdcc ${CFLAGS} -c "$<"
 
 %.rel: %.s
-	sdasz80 -l -o -s "$<"
+	@sdasz80 -l -o -s "$<"
 
 clean:
-	rm -f *.bin *.lk *.map *.mem *.lst *.rel *.rst *.sym *.asm *.ihx *.noi *.hex
-	cd ../driver && $(MAKE) clean
+	@rm -f *.bin *.lk *.map *.mem *.lst *.rel *.rst *.sym *.asm *.ihx *.noi *.hex
+	@cd ../driver && $(MAKE) clean --no-print-directory
 

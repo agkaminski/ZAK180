@@ -3,25 +3,25 @@
 all: ay38912.lib mmu.lib uart.lib vga.lib floppy.lib pio.lib
 
 ay38912.lib: ay38912.rel
-	sdar -q "$@" "$<"
+	@sdar -q "$@" $^
 
 mmu.lib: mmu.rel
-	sdar -q "$@" "$<"
+	@sdar -q "$@" $^
 
 uart.lib: uart.rel
-	sdar -q "$@" "$<"
+	@sdar -q "$@" $^
 
 vga.lib: vga.rel
-	sdar -q "$@" "$<"
+	@sdar -q "$@" $^
 
-floppy.lib: floppy_cmd.rel
-	sdar -q "$@" "$<"
+floppy.lib: floppy_cmd.rel floppy.rel
+	sdar -q "$@" $^
 
 pio.lib: pio.rel
-	sdar -q "$@" "$<"
+	@sdar -q "$@" $^
 
 %.rel: %.c
 	sdcc -mz180 -c "$<"
 
 clean:
-	rm -f *.lib *.lk *.map *.mem *.lst *.rel *.rst *.sym *.asm *.ihx *.noi *.hex
+	@rm -f *.lib *.lk *.map *.mem *.lst *.rel *.rst *.sym *.asm *.ihx *.noi *.hex

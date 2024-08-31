@@ -4,6 +4,11 @@
  * See LICENSE.md
  */
 
+/* No interrupts support - busy polling is barely fast enough,
+ * no way to do this with interrupts. DMA would be great, though.
+ * Z180 DMA is somewhat incompatible with the Intel stuff, but
+ * perhaps it can be done with some glue logic. */
+
 #include <stdio.h>
 #include <stdint.h>
 
@@ -34,21 +39,6 @@ __sfr __at(0xE7) CCR;  /* Configuration Control Register (WO) */
 #define GAP 0x18
 
 #define DRIVE_NO 1 /* Using cable without a twist */
-
-static uint8_t floppy_cmd_lba2cyl(uint16_t lba)
-{
-	return lba / (2 * 18);
-}
-
-static uint8_t floppy_cmd_lba2head(uint16_t lba)
-{
-	return (lba % (2 * 18)) / 18;
-}
-
-static uint8_t floppy_cmd_lba2sector(uint16_t lba)
-{
-	return ((lba % (2 * 18)) % 18) + 1;
-}
 
 static int floopy_cmd_is_busy(void)
 {
@@ -146,9 +136,8 @@ static void floppy_cmd_sector_read(uint8_t *buff)
 }
 
 /* TODO this has to be critical */
-int floppy_cmd_read_data(uint16_t lba, uint8_t *buff, struct floppy_cmd_result *res)
+int floppy_cmd_read_data(uint8_t c, uint8_t h, uint8_t r, uint8_t *buff, struct floppy_cmd_result *res)
 {
-	uint8_t c = floppy_cmd_lba2cyl(lba), h = floppy_cmd_lba2head(lba), r = floppy_cmd_lba2sector(lba);
 	uint8_t cmd[] = { 0x46, ((h << 2) | DRIVE_NO), c, h, r, 2, r, GAP, 0xFF };
 
 	if (floppy_cmd_write_cmd(cmd, sizeof(cmd)) < 0) {
@@ -181,9 +170,8 @@ static void floppy_cmd_sector_write(const uint8_t *buff)
 	} while (i != 512);
 }
 
-int floppy_cmd_write_data(uint16_t lba, const uint8_t *buff, struct floppy_cmd_result *res)
+int floppy_cmd_write_data(uint8_t c, uint8_t h, uint8_t r, const uint8_t *buff, struct floppy_cmd_result *res)
 {
-	uint8_t c = floppy_cmd_lba2cyl(lba), h = floppy_cmd_lba2head(lba), r = floppy_cmd_lba2sector(lba);
 	uint8_t cmd[] = { 0x45, ((h << 2) | DRIVE_NO) | 0x80, c, h, r, 2, r, GAP, 0xFF };
 
 	if (floppy_cmd_write_cmd(cmd, sizeof(cmd)) < 0) {
@@ -342,6 +330,27 @@ void floppy_cmd_enable(int8_t enable)
 	}
 }
 
+int floppy_cmd_eject_status(void)
+{
+	if (DIR & (1 << 7)) {
+		/* Media was ejected, clear the flag and
+		 * return information. */
+
+		/* Do seek + recalibrate to force movement,
+		 * otherwise if we hit the track the controller
+		 * thinks we're already at, there will be no
+		 * operation and Disk Change flag won't be cleared. */
+		if ((floppy_cmd_seek(1) < 0) | (floppy_cmd_recalibrate() < 0)) {
+			/* Seek failed, most likely ejected */
+			return FLOPPY_CMD_NO_MEDIA;
+		}
+
+		return FLOPPY_CMD_CHANGE;
+	}
+
+	return FLOPPY_CMD_NO_CHANGE;
+}
+
 int floppy_cmd_reset(int warm)
 {
 	/* Reset */
@@ -397,9 +406,4 @@ int floppy_cmd_reset(int warm)
 	floppy_cmd_enable(0);
 
 	return 0;
-}
-
-void floppy_cmd_init(void)
-{
-	while (floppy_cmd_reset(0) < 0);
 }
