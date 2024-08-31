@@ -35,16 +35,6 @@ __sfr __at(0xE7) CCR;  /* Configuration Control Register (WO) */
 
 #define DRIVE_NO 1
 
-struct cmd_result {
-	uint8_t st0;
-	uint8_t st1;
-	uint8_t st2;
-	uint8_t c;
-	uint8_t h;
-	uint8_t r;
-	uint8_t n;
-};
-
 static void floppy_delay(void)
 {
 	/* Just some random amount of delay */
@@ -75,7 +65,7 @@ static int floppy_fifo_read(uint8_t *data)
 	return -1;
 }
 
-static int floppy_read_result(struct cmd_result *res)
+static int floppy_read_result(struct floppy_result *res)
 {
 	if (floppy_fifo_read(&res->st0) < 0) {
 		return -1;
@@ -124,29 +114,27 @@ static int floppy_write_cmd(uint8_t *cmd, uint8_t len)
 }
 
 /* Slightly optimised function, we barely are able to keep up the pace */
-
 static void floppy_sector_read(uint8_t *buff)
 {
-	uint8_t msr = MSR;
 	uint16_t i = 0;
 
 	do {
-		msr = MSR;
+		uint8_t msr = MSR;
 		if (!(msr & 0x20)) {
 			break;
 		}
-		if (!(msr & 0x80)) {
-			continue;
+		if (msr & 0x80) {
+			buff[i++] = FIFO;
 		}
-
-		buff[i++] = FIFO;
 	} while (i != 512);
 }
 
 /* TODO this has to be critical */
-int floppy_cmd_read_data(uint8_t c, uint8_t h, uint8_t r, uint8_t *buff, struct cmd_result *res)
+int floppy_cmd_read_data(uint8_t c, uint8_t h, uint8_t r, uint8_t *buff, struct floppy_result *res)
 {
 	uint8_t cmd[] = { 0x46, ((h << 2) | DRIVE_NO), c, h, r, 2, r, GAP, 0xFF };
+	uint8_t msr = MSR;
+	uint16_t i = 0;
 
 	if (floppy_write_cmd(cmd, sizeof(cmd)) < 0) {
 		return -1;
@@ -157,55 +145,43 @@ int floppy_cmd_read_data(uint8_t c, uint8_t h, uint8_t r, uint8_t *buff, struct 
 	floppy_sector_read(buff);
 
 	/* We lied that the sector is at end of the track, we'll get the result right away */
+	/* On success ST0 = 0x41, ST1 = 0x80 (EOT) */
 
 	return floppy_read_result(res);
 }
 
-int floppy_cmd_write_data(uint8_t c, uint8_t h, uint8_t r, const uint8_t *buff, struct cmd_result *res)
+/* Slightly optimised function, we barely are able to keep up the pace */
+static void floppy_sector_write(const uint8_t *buff)
 {
-	uint8_t cmd[] = { 0x45, ((h << 2) | DRIVE_NO), c, h, r, 2, EOT, GAP, 0xFF };
+	uint16_t i = 0;
+
+	do {
+		uint8_t msr = MSR;
+		if (!(msr & 0x20)) {
+			break;
+		}
+		if (msr & 0x80) {
+			FIFO = buff[i++];
+		}
+	} while (i != 512);
+}
+
+int floppy_cmd_write_data(uint8_t c, uint8_t h, uint8_t r, const uint8_t *buff, struct floppy_result *res)
+{
+	uint8_t cmd[] = { 0x45, ((h << 2) | DRIVE_NO), c, h, r, 2, r, GAP, 0xFF };
 
 	if (floppy_write_cmd(cmd, sizeof(cmd)) < 0) {
 		return -1;
 	}
 
-	/* Now we write data */
-	for (size_t i = 0; i < 512; ++i) {
-		if (floppy_fifo_write(buff[i]) < 0) {
-			return -1;
-		}
-	}
+	/* Slightly optimised, we are barely able to keep up the pace
+	 * No error checking here, but it's ok, we'll fail on read_result */
+	floppy_sector_write(buff);
 
 	return floppy_read_result(res);
 }
 
-int floppy_cmd_version(uint8_t *version)
-{
-	if (floppy_fifo_write(0x10) < 0) {
-		return -1;
-	}
-
-	if (floppy_fifo_read(version) < 0) {
-		return -1;
-	}
-
-	return 0;
-}
-
-int floppy_cmd_recalibrate(void)
-{
-	if (floppy_fifo_write(0x07) < 0) {
-		return -1;
-	}
-
-	if (floppy_fifo_write(DRIVE_NO) < 0) {
-		return -1;
-	}
-
-	return 0;
-}
-
-int floppy_cmd_sense_interrupt(uint8_t *st0, uint8_t *pcn)
+static int floppy_cmd_sense_interrupt(uint8_t *st0, uint8_t *pcn)
 {
 	uint8_t st0_l = 0, pcn_l = 0;
 	uint16_t retry;
@@ -242,7 +218,30 @@ int floppy_cmd_sense_interrupt(uint8_t *st0, uint8_t *pcn)
 	return 0;
 }
 
-int floppy_cmd_specify(uint8_t srt, uint8_t hut, uint8_t hlt, uint8_t nd)
+int floppy_cmd_recalibrate(void)
+{
+	uint8_t st0;
+
+	if (floppy_fifo_write(0x07) < 0) {
+		return -1;
+	}
+
+	if (floppy_fifo_write(DRIVE_NO) < 0) {
+		return -1;
+	}
+
+	if (floppy_cmd_sense_interrupt(&st0, NULL) < 0) {
+		return -1;
+	}
+
+	if (st0 & 0xC0) {
+		return -1;
+	}
+
+	return 0;
+}
+
+static int floppy_cmd_specify(uint8_t srt, uint8_t hut, uint8_t hlt, uint8_t nd)
 {
 	uint8_t cmd[] = { 0x03, ((srt << 4) | hut), ((hlt << 1) | nd) };
 
@@ -256,15 +255,24 @@ int floppy_cmd_specify(uint8_t srt, uint8_t hut, uint8_t hlt, uint8_t nd)
 int floppy_cmd_seek(uint8_t c)
 {
 	uint8_t cmd[] = { 0x0F, DRIVE_NO, c };
+	uint8_t st0;
 
 	if (floppy_write_cmd(cmd, sizeof(cmd)) < 0) {
+		return -1;
+	}
+
+	if (floppy_cmd_sense_interrupt(&st0, NULL) < 0) {
+		return -1;
+	}
+
+	if (st0 & 0xC0) {
 		return -1;
 	}
 
 	return 0;
 }
 
-int floppy_cmd_configure(uint8_t eis, uint8_t poll, uint8_t fifothr)
+static int floppy_cmd_configure(uint8_t eis, uint8_t poll, uint8_t fifothr)
 {
 	uint8_t cmd[] = { 0x13, 0x00, ((eis << 6) | (poll << 4) | fifothr), 0x00 };
 
@@ -275,7 +283,7 @@ int floppy_cmd_configure(uint8_t eis, uint8_t poll, uint8_t fifothr)
 	return 0;
 }
 
-int floppy_cmd_lock(uint8_t lock)
+static int floppy_cmd_lock(uint8_t lock)
 {
 	uint8_t readback;
 
@@ -294,36 +302,26 @@ int floppy_cmd_lock(uint8_t lock)
 	return 0;
 }
 
-static void floppy_enable(int8_t enable)
+void floppy_enable(int8_t enable)
 {
-	uint8_t dorval[] = {
+	static const uint8_t dorval[] = {
 		DOR_SELECT_0,
 		DOR_SELECT_1,
 		DOR_SELECT_2,
 		DOR_SELECT_3
 	};
 
-	DOR = enable ? dorval[DRIVE_NO] : DOR_SELECT_NONE;
-}
-
-uint8_t sector[512];
-struct cmd_result res;
-
-static void dump(size_t base)
-{
-	for (size_t i = 0; i < 512; i += 16) {
-		printf("%04x: ", i + (base * 512));
-		for (size_t j = 0; j < 16; ++j) {
-			printf("%02x ", sector[i + j]);
-		}
-		printf("\r\n");
+	if (enable) {
+		DOR = dorval[DRIVE_NO];
+		floppy_delay();
+	}
+	else {
+		DOR = DOR_SELECT_NONE;
 	}
 }
 
-static int floppy_reset(int warm)
+int floppy_reset(int warm)
 {
-	uint8_t st0;
-
 	/* Reset */
 	DOR = 0;
 
@@ -369,41 +367,12 @@ static int floppy_reset(int warm)
 		floppy_enable(0);
 		return -1;
 	}
-	if (floppy_cmd_sense_interrupt(&st0, NULL) < 0) {
-		floppy_enable(0);
-		return -1;
-	}
 	floppy_enable(0);
 
-	return ((st0 & 0xF0) != 0x20) ? -1 : 0;
+	return 0;
 }
 
 void floppy_init(void)
 {
 	while (floppy_reset(0) < 0);
-
-	floppy_enable(1);
-	floppy_delay();
-
-	floppy_cmd_read_data(0, 0, 1, sector, &res);
-	dump(0);
-	floppy_cmd_read_data(0, 0, 2, sector, &res);
-	dump(1);
-	floppy_cmd_read_data(0, 0, 3, sector, &res);
-	dump(2);
-	floppy_cmd_read_data(0, 0, 4, sector, &res);
-	dump(3);
-
-	floppy_cmd_seek(30);
-
-	floppy_cmd_read_data(30, 0, 1, sector, &res);
-	dump(0);
-	floppy_cmd_read_data(30, 0, 2, sector, &res);
-	dump(1);
-	floppy_cmd_read_data(30, 0, 3, sector, &res);
-	dump(2);
-	floppy_cmd_read_data(30, 0, 4, sector, &res);
-	dump(3);
-
-	floppy_enable(0);
 }
