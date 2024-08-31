@@ -8,7 +8,7 @@
 #include <stdio.h>
 
 #include "../driver/uart.h"
-#include "../driver/floppy.h"
+#include "../driver/floppy_cmd.h"
 
 int putchar(int c)
 {
@@ -20,13 +20,13 @@ int putchar(int c)
 }
 
 uint8_t sector[512];
-struct floppy_result res;
+struct floppy_cmd_result res;
 
 
 static void dump(size_t base)
 {
 	for (size_t i = 0; i < 512; i += 16) {
-		printf("%04x: ", i + (base * 512));
+		printf("%06lx: ", i + ((long)base * 512));
 		for (size_t j = 0; j < 16; ++j) {
 			printf("%02x ", sector[i + j]);
 		}
@@ -40,53 +40,17 @@ int main(void)
 
 	printf("ZAK180 Bootloader rev " VERSION "\r\n");
 
-	floppy_init();
+	floppy_cmd_init();
 
+	floppy_cmd_enable(1);
 
+	for (uint16_t i = 0; i < 80 * 18 * 2; i += (18 * 2)) {
+		floppy_cmd_read_data(i, sector, &res);
+		printf("res: %02x %02x %02x %02x\r\n", res.st0, res.st1, res.st2, res.c);
+		dump(i);
+	}
 
-
-
-	floppy_enable(1);
-
-	printf("Initial read\r\n");
-	floppy_cmd_read_data(0, 0, 1, sector, &res);
-	printf("res: %02x %02x %02x\r\n", res.st0, res.st1, res.st2);
-	dump(0);
-
-	memset(sector, 0, sizeof(sector));
-
-	printf("Writing 00\r\n");
-	floppy_cmd_write_data(0, 0, 1, sector, &res);
-	printf("res: %02x %02x %02x\r\n", res.st0, res.st1, res.st2);
-
-	printf("Read, expect 00\r\n");
-	floppy_cmd_read_data(0, 0, 1, sector, &res);
-	printf("res: %02x %02x %02x\r\n", res.st0, res.st1, res.st2);
-	dump(0);
-
-	memset(sector, 0xAA, sizeof(sector));
-
-	printf("Writing AA\r\n");
-	floppy_cmd_write_data(0, 0, 1, sector, &res);
-	printf("res: %02x %02x %02x\r\n", res.st0, res.st1, res.st2);
-
-	printf("Read, expect AA\r\n");
-	floppy_cmd_read_data(0, 0, 1, sector, &res);
-	printf("res: %02x %02x %02x\r\n", res.st0, res.st1, res.st2);
-	dump(0);
-
-	memset(sector, 0x55, sizeof(sector));
-
-	printf("Writing 55\r\n");
-	floppy_cmd_write_data(0, 0, 1, sector, &res);
-	printf("res: %02x %02x %02x\r\n", res.st0, res.st1, res.st2);
-
-	printf("Read, expect 55\r\n");
-	floppy_cmd_read_data(0, 0, 1, sector, &res);
-	printf("res: %02x %02x %02x\r\n", res.st0, res.st1, res.st2);
-	dump(0);
-
-	floppy_enable(0);
+	floppy_cmd_enable(0);
 
 
 	return 0;

@@ -14,7 +14,7 @@ uart.lib: uart.rel
 vga.lib: vga.rel
 	sdar -q "$@" "$<"
 
-floppy.lib: floppy.rel
+floppy.lib: floppy_cmd.rel
 	sdar -q "$@" "$<"
 
 %.rel: %.c

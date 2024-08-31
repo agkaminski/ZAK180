@@ -9,7 +9,7 @@
 
 #include <z180/z180.h>
 
-#include "floppy.h"
+#include "floppy_cmd.h"
 
 /* 82077 on ZAK180 is in AT mode */
 
@@ -20,11 +20,11 @@ __sfr __at(0xE5) FIFO; /* Data Register (FIFO)*/
 __sfr __at(0xE7) DIR;  /* Digital Input Register (RO) */
 __sfr __at(0xE7) CCR;  /* Configuration Control Register (WO) */
 
-#define DOR_SELECT_NONE 0x04
-#define DOR_SELECT_0    0x14
-#define DOR_SELECT_1    0x25
-#define DOR_SELECT_2    0x46
-#define DOR_SELECT_3    0x87
+#define DOR_SELECT_NONE 0x0C
+#define DOR_SELECT_0    0x1C
+#define DOR_SELECT_1    0x2D
+#define DOR_SELECT_2    0x4E
+#define DOR_SELECT_3    0x8F
 
 #define CCR_HD144 0 /* 500 kbit/s, default precompensation */
 
@@ -33,15 +33,35 @@ __sfr __at(0xE7) CCR;  /* Configuration Control Register (WO) */
 #define EOT 0x12
 #define GAP 0x18
 
-#define DRIVE_NO 1
+#define DRIVE_NO 1 /* Using cable without a twist */
 
-static void floppy_delay(void)
+static uint8_t floppy_cmd_lba2cyl(uint16_t lba)
+{
+	return lba / (2 * 18);
+}
+
+static uint8_t floppy_cmd_lba2head(uint16_t lba)
+{
+	return (lba % (2 * 18)) / 18;
+}
+
+static uint8_t floppy_cmd_lba2sector(uint16_t lba)
+{
+	return ((lba % (2 * 18)) % 18) + 1;
+}
+
+static int floopy_cmd_is_busy(void)
+{
+	return !!(MSR & (1 << DRIVE_NO));
+}
+
+static void floppy_cmd_delay(void)
 {
 	/* Just some random amount of delay */
 	for (volatile unsigned int i = 1; i != 0; ++i);
 }
 
-static int floppy_fifo_write(uint8_t data)
+static int floppy_cmd_fifo_write(uint8_t data)
 {
 	for (uint16_t retry = 0xFFFF; retry != 0; --retry) {
 		if ((MSR & (uint8_t)0xC0) == 0x80) {
@@ -53,7 +73,7 @@ static int floppy_fifo_write(uint8_t data)
 	return -1;
 }
 
-static int floppy_fifo_read(uint8_t *data)
+static int floppy_cmd_fifo_read(uint8_t *data)
 {
 	for (uint16_t retry = 0xFFFF; retry != 0; --retry) {
 		if ((MSR & (uint8_t)0xC0) == 0xC0) {
@@ -65,43 +85,43 @@ static int floppy_fifo_read(uint8_t *data)
 	return -1;
 }
 
-static int floppy_read_result(struct floppy_result *res)
+static int floppy_cmd_read_result(struct floppy_cmd_result *res)
 {
-	if (floppy_fifo_read(&res->st0) < 0) {
+	if (floppy_cmd_fifo_read(&res->st0) < 0) {
 		return -1;
 	}
 
-	if (floppy_fifo_read(&res->st1) < 0) {
+	if (floppy_cmd_fifo_read(&res->st1) < 0) {
 		return -1;
 	}
 
-	if (floppy_fifo_read(&res->st2) < 0) {
+	if (floppy_cmd_fifo_read(&res->st2) < 0) {
 		return -1;
 	}
 
-	if (floppy_fifo_read(&res->c) < 0) {
+	if (floppy_cmd_fifo_read(&res->c) < 0) {
 		return -1;
 	}
 
-	if (floppy_fifo_read(&res->h) < 0) {
+	if (floppy_cmd_fifo_read(&res->h) < 0) {
 		return -1;
 	}
 
-	if (floppy_fifo_read(&res->r) < 0) {
+	if (floppy_cmd_fifo_read(&res->r) < 0) {
 		return -1;
 	}
 
-	if (floppy_fifo_read(&res->n) < 0) {
+	if (floppy_cmd_fifo_read(&res->n) < 0) {
 		return -1;
 	}
 
 	return 0;
 }
 
-static int floppy_write_cmd(uint8_t *cmd, uint8_t len)
+static int floppy_cmd_write_cmd(uint8_t *cmd, uint8_t len)
 {
 	for (uint8_t i = 0; i < len; ++i) {
-		if (floppy_fifo_write(cmd[i]) < 0) {
+		if (floppy_cmd_fifo_write(cmd[i]) < 0) {
 			return -1;
 		}
 	}
@@ -110,7 +130,7 @@ static int floppy_write_cmd(uint8_t *cmd, uint8_t len)
 }
 
 /* Slightly optimised function, we barely are able to keep up the pace */
-static void floppy_sector_read(uint8_t *buff)
+static void floppy_cmd_sector_read(uint8_t *buff)
 {
 	uint16_t i = 0;
 
@@ -126,28 +146,27 @@ static void floppy_sector_read(uint8_t *buff)
 }
 
 /* TODO this has to be critical */
-int floppy_cmd_read_data(uint8_t c, uint8_t h, uint8_t r, uint8_t *buff, struct floppy_result *res)
+int floppy_cmd_read_data(uint16_t lba, uint8_t *buff, struct floppy_cmd_result *res)
 {
+	uint8_t c = floppy_cmd_lba2cyl(lba), h = floppy_cmd_lba2head(lba), r = floppy_cmd_lba2sector(lba);
 	uint8_t cmd[] = { 0x46, ((h << 2) | DRIVE_NO), c, h, r, 2, r, GAP, 0xFF };
-	uint8_t msr = MSR;
-	uint16_t i = 0;
 
-	if (floppy_write_cmd(cmd, sizeof(cmd)) < 0) {
+	if (floppy_cmd_write_cmd(cmd, sizeof(cmd)) < 0) {
 		return -1;
 	}
 
 	/* Slightly optimised, we are barely able to keep up the pace
 	 * No error checking here, but it's ok, we'll fail on read_result */
-	floppy_sector_read(buff);
+	floppy_cmd_sector_read(buff);
 
 	/* We lied that the sector is at end of the track, we'll get the result right away */
 	/* On success ST0 = 0x41, ST1 = 0x80 (EOT) */
 
-	return floppy_read_result(res);
+	return floppy_cmd_read_result(res);
 }
 
 /* Slightly optimised function, we barely are able to keep up the pace */
-static void floppy_sector_write(const uint8_t *buff)
+static void floppy_cmd_sector_write(const uint8_t *buff)
 {
 	uint16_t i = 0;
 
@@ -162,19 +181,20 @@ static void floppy_sector_write(const uint8_t *buff)
 	} while (i != 512);
 }
 
-int floppy_cmd_write_data(uint8_t c, uint8_t h, uint8_t r, const uint8_t *buff, struct floppy_result *res)
+int floppy_cmd_write_data(uint16_t lba, const uint8_t *buff, struct floppy_cmd_result *res)
 {
-	uint8_t cmd[] = { 0x45, ((h << 2) | DRIVE_NO), c, h, r, 2, r, GAP, 0xFF };
+	uint8_t c = floppy_cmd_lba2cyl(lba), h = floppy_cmd_lba2head(lba), r = floppy_cmd_lba2sector(lba);
+	uint8_t cmd[] = { 0x45, ((h << 2) | DRIVE_NO) | 0x80, c, h, r, 2, r, GAP, 0xFF };
 
-	if (floppy_write_cmd(cmd, sizeof(cmd)) < 0) {
+	if (floppy_cmd_write_cmd(cmd, sizeof(cmd)) < 0) {
 		return -1;
 	}
 
 	/* Slightly optimised, we are barely able to keep up the pace
 	 * No error checking here, but it's ok, we'll fail on read_result */
-	floppy_sector_write(buff);
+	floppy_cmd_sector_write(buff);
 
-	return floppy_read_result(res);
+	return floppy_cmd_read_result(res);
 }
 
 static int floppy_cmd_sense_interrupt(uint8_t *st0, uint8_t *pcn)
@@ -183,19 +203,22 @@ static int floppy_cmd_sense_interrupt(uint8_t *st0, uint8_t *pcn)
 	uint16_t retry;
 
 	for (retry = 0xFFFF; retry != 0; --retry) {
-		if (floppy_fifo_write(0x08) < 0) {
+		if (floppy_cmd_fifo_write(0x08) < 0) {
 			return -1;
 		}
 
-		if (floppy_fifo_read(&st0_l) < 0) {
+		if (floppy_cmd_fifo_read(&st0_l) < 0) {
 			return -1;
 		}
 
 		if (st0_l != 0x80) {
-			if (floppy_fifo_read(&pcn_l) < 0) {
+			if (floppy_cmd_fifo_read(&pcn_l) < 0) {
 				return -1;
 			}
 			break;
+		}
+		else {
+			printf("FUCKUP\r\n");
 		}
 	}
 
@@ -216,15 +239,15 @@ static int floppy_cmd_sense_interrupt(uint8_t *st0, uint8_t *pcn)
 
 int floppy_cmd_recalibrate(void)
 {
-	uint8_t st0;
+	uint8_t st0, cmd[] = { 0x07, DRIVE_NO };
 
-	if (floppy_fifo_write(0x07) < 0) {
+	if (floppy_cmd_write_cmd(cmd, sizeof(cmd)) < 0) {
 		return -1;
 	}
 
-	if (floppy_fifo_write(DRIVE_NO) < 0) {
-		return -1;
-	}
+	/* TODO add timeout, long one though */
+	while (floopy_cmd_is_busy());
+	floppy_cmd_delay();
 
 	if (floppy_cmd_sense_interrupt(&st0, NULL) < 0) {
 		return -1;
@@ -241,7 +264,7 @@ static int floppy_cmd_specify(uint8_t srt, uint8_t hut, uint8_t hlt, uint8_t nd)
 {
 	uint8_t cmd[] = { 0x03, ((srt << 4) | hut), ((hlt << 1) | nd) };
 
-	if (floppy_write_cmd(cmd, sizeof(cmd)) < 0) {
+	if (floppy_cmd_write_cmd(cmd, sizeof(cmd)) < 0) {
 		return -1;
 	}
 
@@ -253,9 +276,12 @@ int floppy_cmd_seek(uint8_t c)
 	uint8_t cmd[] = { 0x0F, DRIVE_NO, c };
 	uint8_t st0;
 
-	if (floppy_write_cmd(cmd, sizeof(cmd)) < 0) {
+	if (floppy_cmd_write_cmd(cmd, sizeof(cmd)) < 0) {
 		return -1;
 	}
+
+	/* TODO add timeout, long one though */
+	while (floopy_cmd_is_busy());
 
 	if (floppy_cmd_sense_interrupt(&st0, NULL) < 0) {
 		return -1;
@@ -272,7 +298,7 @@ static int floppy_cmd_configure(uint8_t eis, uint8_t poll, uint8_t fifothr)
 {
 	uint8_t cmd[] = { 0x13, 0x00, ((eis << 6) | (poll << 4) | fifothr), 0x00 };
 
-	if (floppy_write_cmd(cmd, sizeof(cmd)) < 0) {
+	if (floppy_cmd_write_cmd(cmd, sizeof(cmd)) < 0) {
 		return -1;
 	}
 
@@ -283,11 +309,11 @@ static int floppy_cmd_lock(uint8_t lock)
 {
 	uint8_t readback;
 
-	if (floppy_fifo_write((lock << 7) | 0x14) < 0) {
+	if (floppy_cmd_fifo_write((lock << 7) | 0x14) < 0) {
 		return -1;
 	}
 
-	if (floppy_fifo_read(&readback) < 0) {
+	if (floppy_cmd_fifo_read(&readback) < 0) {
 		return -1;
 	}
 
@@ -298,7 +324,7 @@ static int floppy_cmd_lock(uint8_t lock)
 	return 0;
 }
 
-void floppy_enable(int8_t enable)
+void floppy_cmd_enable(int8_t enable)
 {
 	static const uint8_t dorval[] = {
 		DOR_SELECT_0,
@@ -309,19 +335,19 @@ void floppy_enable(int8_t enable)
 
 	if (enable) {
 		DOR = dorval[DRIVE_NO];
-		floppy_delay();
+		floppy_cmd_delay();
 	}
 	else {
 		DOR = DOR_SELECT_NONE;
 	}
 }
 
-int floppy_reset(int warm)
+int floppy_cmd_reset(int warm)
 {
 	/* Reset */
 	DOR = 0;
 
-	floppy_delay();
+	floppy_cmd_delay();
 
 	/* Bring out of reset */
 	DOR = DOR_SELECT_NONE;
@@ -330,6 +356,8 @@ int floppy_reset(int warm)
 	while (MSR != 0x80);
 
 	if (!warm) {
+		floppy_cmd_delay();
+
 		if (floppy_cmd_sense_interrupt(NULL, NULL) < 0) {
 			return -1;
 		}
@@ -353,22 +381,25 @@ int floppy_reset(int warm)
 		}
 	}
 
-	if (floppy_cmd_specify(12, 0, 2, 1) < 0) {
+	if (floppy_cmd_specify(12, 15, 2, 1) < 0) {
 		return -1;
 	}
 
-	floppy_enable(1);
-	floppy_delay();
+	floppy_cmd_enable(1);
+	floppy_cmd_delay();
 	if (floppy_cmd_recalibrate() < 0) {
-		floppy_enable(0);
+		floppy_cmd_enable(0);
 		return -1;
 	}
-	floppy_enable(0);
+
+	floppy_cmd_seek(0);
+
+	floppy_cmd_enable(0);
 
 	return 0;
 }
 
-void floppy_init(void)
+void floppy_cmd_init(void)
 {
-	while (floppy_reset(0) < 0);
+	while (floppy_cmd_reset(0) < 0);
 }
