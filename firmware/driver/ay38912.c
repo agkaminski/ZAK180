@@ -8,24 +8,24 @@
 
 #include "ay38912.h"
 
-__sfr __at(0xC0) AY_LATCH;
-__sfr __at(0xC1) AY_READ;
-__sfr __at(0xC1) AY_WRITE;
+__sfr __at(0xC0) LATCH;
+__sfr __at(0xC1) READ;
+__sfr __at(0xC1) WRITE;
 
 unsigned char ay38912_readPort(void)
 {
-	AY_LATCH = 17;
-	return AY_READ;
+	LATCH = 17;
+	return READ;
 }
 
 void ay38912_writePort(unsigned char byte)
 {
-	AY_LATCH = 17;
-	AY_WRITE = byte;
+	LATCH = 17;
+	WRITE = byte;
 }
 
 void ay38912_setPort(unsigned char dir)
 {
-	AY_LATCH = 7;
-	AY_WRITE = AY_READ | (!!dir << 6);
+	LATCH = 7;
+	WRITE = READ | (!!dir << 6);
 }
