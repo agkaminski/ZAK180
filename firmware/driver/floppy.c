@@ -95,10 +95,6 @@ static int floppy_read_result(struct floppy_result *res)
 		return -1;
 	}
 
-	printf("st0: %02x\r\n", res->st0);
-	printf("st1: %02x\r\n", res->st1);
-	printf("st2: %02x\r\n", res->st2);
-
 	return 0;
 }
 

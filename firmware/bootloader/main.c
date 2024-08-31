@@ -48,25 +48,43 @@ int main(void)
 
 	floppy_enable(1);
 
+	printf("Initial read\r\n");
 	floppy_cmd_read_data(0, 0, 1, sector, &res);
+	printf("res: %02x %02x %02x\r\n", res.st0, res.st1, res.st2);
 	dump(0);
-	floppy_cmd_read_data(0, 0, 2, sector, &res);
-	dump(1);
-	floppy_cmd_read_data(0, 0, 3, sector, &res);
-	dump(2);
-	floppy_cmd_read_data(0, 0, 4, sector, &res);
-	dump(3);
 
-	floppy_cmd_seek(30);
+	memset(sector, 0, sizeof(sector));
 
-	floppy_cmd_read_data(30, 0, 1, sector, &res);
+	printf("Writing 00\r\n");
+	floppy_cmd_write_data(0, 0, 1, sector, &res);
+	printf("res: %02x %02x %02x\r\n", res.st0, res.st1, res.st2);
+
+	printf("Read, expect 00\r\n");
+	floppy_cmd_read_data(0, 0, 1, sector, &res);
+	printf("res: %02x %02x %02x\r\n", res.st0, res.st1, res.st2);
 	dump(0);
-	floppy_cmd_read_data(30, 0, 2, sector, &res);
-	dump(1);
-	floppy_cmd_read_data(30, 0, 3, sector, &res);
-	dump(2);
-	floppy_cmd_read_data(30, 0, 4, sector, &res);
-	dump(3);
+
+	memset(sector, 0xAA, sizeof(sector));
+
+	printf("Writing AA\r\n");
+	floppy_cmd_write_data(0, 0, 1, sector, &res);
+	printf("res: %02x %02x %02x\r\n", res.st0, res.st1, res.st2);
+
+	printf("Read, expect AA\r\n");
+	floppy_cmd_read_data(0, 0, 1, sector, &res);
+	printf("res: %02x %02x %02x\r\n", res.st0, res.st1, res.st2);
+	dump(0);
+
+	memset(sector, 0x55, sizeof(sector));
+
+	printf("Writing 55\r\n");
+	floppy_cmd_write_data(0, 0, 1, sector, &res);
+	printf("res: %02x %02x %02x\r\n", res.st0, res.st1, res.st2);
+
+	printf("Read, expect 55\r\n");
+	floppy_cmd_read_data(0, 0, 1, sector, &res);
+	printf("res: %02x %02x %02x\r\n", res.st0, res.st1, res.st2);
+	dump(0);
 
 	floppy_enable(0);
 
