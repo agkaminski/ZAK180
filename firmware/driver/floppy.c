@@ -11,8 +11,6 @@
 
 #include "floppy.h"
 
-#define DEBUG(fmt, ...) printf(fmt "\r\n", ##__VA_ARGS__)
-
 /* 82077 on ZAK180 is in AT mode */
 
 /* Registers */
@@ -21,12 +19,6 @@ __sfr __at(0xE4) MSR;  /* Main Status Register (RO) */
 __sfr __at(0xE5) FIFO; /* Data Register (FIFO)*/
 __sfr __at(0xE7) DIR;  /* Digital Input Register (RO) */
 __sfr __at(0xE7) CCR;  /* Configuration Control Register (WO) */
-
-//#define DOR_SELECT_NONE 0x0C
-//#define DOR_SELECT_0    0x1C
-//#define DOR_SELECT_1    0x2D
-//#define DOR_SELECT_2    0x4E
-//#define DOR_SELECT_3    0x8F
 
 #define DOR_SELECT_NONE 0x04
 #define DOR_SELECT_0    0x14
@@ -62,15 +54,6 @@ struct cmd_result {
 	uint8_t n;
 };
 
-void floppy_dumpregs(void)
-{
-	printf("82077 registers:\r\n");
-	printf("DOR  (0xE2): 0x%02x\r\n", DOR);
-	printf("MSR  (0xE4): 0x%02x\r\n", MSR);
-	//printf("FIFO (0xE5): 0x%02x\r\n", FIFO);
-	printf("DIR  (0xE7): 0x%02x\r\n", DIR);
-}
-
 static int floppy_fifo_write(uint8_t data)
 {
 	uint8_t msr;
@@ -95,8 +78,6 @@ static int floppy_fifo_read(uint8_t *data)
 	} while ((msr & (uint8_t)0xc0) != 0xc0);
 
 	*data = FIFO;
-
-	//printf("%02x ", *data);
 
 	return 0;
 }
@@ -131,10 +112,6 @@ static int floppy_read_result(struct cmd_result *res)
 		return -1;
 	}
 
-	printf("st0: %02x\r\n", res->st0);
-	printf("st1: %02x\r\n", res->st1);
-	printf("st2: %02x\r\n", res->st2);
-
 	return 0;
 }
 
@@ -149,9 +126,12 @@ static int floppy_write_cmd(uint8_t *cmd, uint8_t len)
 	return 0;
 }
 
+/* Slightly optimised function, we barely are able to keep pace */
 static void floppy_sector_read(uint8_t *buff)
 {
 	for (uint16_t i = 0; i < 512; ++i) {
+		/* FIXME some retry counter? We are barely fast enough
+		 * as is, though */
 		while ((MSR & (uint8_t)0xc0) != 0xc0);
 		buff[i] = FIFO;
 	}
@@ -159,9 +139,7 @@ static void floppy_sector_read(uint8_t *buff)
 
 int floppy_cmd_read_data(uint8_t c, uint8_t h, uint8_t r, uint8_t *buff, struct cmd_result *res)
 {
-	uint8_t cmd[] = { 0x46, ((h << 2) | DRIVE_NO), c, h, r, 2, EOT, GAP, 0xFF };
-
-	DEBUG("Floppy CMD Read Data");
+	uint8_t cmd[] = { 0x46, ((h << 2) | DRIVE_NO), c, h, r, 2, r, GAP, 0xFF };
 
 	if (floppy_write_cmd(cmd, sizeof(cmd)) < 0) {
 		return -1;
@@ -169,10 +147,7 @@ int floppy_cmd_read_data(uint8_t c, uint8_t h, uint8_t r, uint8_t *buff, struct 
 
 	floppy_sector_read(buff);
 
-	printf("dupa\r\n");
-
-	/* Cause overrun */
-	for (volatile unsigned int i = 1; i != 0; ++i);
+	/* We lied that the sector is at end of track, we'll get result right away */
 
 	return floppy_read_result(res);
 }
@@ -180,8 +155,6 @@ int floppy_cmd_read_data(uint8_t c, uint8_t h, uint8_t r, uint8_t *buff, struct 
 int floppy_cmd_write_data(uint8_t c, uint8_t h, uint8_t r, const uint8_t *buff, struct cmd_result *res)
 {
 	uint8_t cmd[] = { 0x45, ((h << 2) | DRIVE_NO), c, h, r, 2, EOT, GAP, 0xFF };
-
-	DEBUG("Floppy CMD write data");
 
 	if (floppy_write_cmd(cmd, sizeof(cmd)) < 0) {
 		return -1;
@@ -199,8 +172,6 @@ int floppy_cmd_write_data(uint8_t c, uint8_t h, uint8_t r, const uint8_t *buff, 
 
 int floppy_cmd_version(uint8_t *version)
 {
-	DEBUG("Floppy CMD version");
-
 	if (floppy_fifo_write(0x10) < 0) {
 		return -1;
 	}
@@ -214,8 +185,6 @@ int floppy_cmd_version(uint8_t *version)
 
 int floppy_cmd_recalibrate(void)
 {
-	DEBUG("Floppy CMD recalibrate");
-
 	if (floppy_fifo_write(0x07) < 0) {
 		return -1;
 	}
@@ -229,22 +198,22 @@ int floppy_cmd_recalibrate(void)
 
 int floppy_cmd_sense_interrupt(uint8_t *st0, uint8_t *pcn)
 {
-	DEBUG("Floppy CMD sense interrupt");
-retry:
-	if (floppy_fifo_write(0x08) < 0) {
-		return -1;
-	}
+	/* TODO add wait and retry counter */
+	while (1) {
+		if (floppy_fifo_write(0x08) < 0) {
+			return -1;
+		}
 
-	if (floppy_fifo_read(st0) < 0) {
-		return -1;
-	}
+		if (floppy_fifo_read(st0) < 0) {
+			return -1;
+		}
 
-	if (*st0 == 0x80) {
-		goto retry;
-	}
-
-	if (floppy_fifo_read(pcn) < 0) {
-		return -1;
+		if (*st0 != 0x80) {
+			if (floppy_fifo_read(pcn) < 0) {
+				return -1;
+			}
+			break;
+		}
 	}
 
 	return 0;
@@ -253,8 +222,6 @@ retry:
 int floppy_cmd_specify(uint8_t srt, uint8_t hut, uint8_t hlt, uint8_t nd)
 {
 	uint8_t cmd[] = { 0x03, ((srt << 4) | hut), ((hlt << 1) | nd) };
-
-	DEBUG("Floppy CMD specify");
 
 	if (floppy_write_cmd(cmd, sizeof(cmd)) < 0) {
 		return -1;
@@ -267,8 +234,6 @@ int floppy_cmd_seek(uint8_t c)
 {
 	uint8_t cmd[] = { 0x0F, DRIVE_NO, c };
 
-	DEBUG("Floppy CMD seek");
-
 	if (floppy_write_cmd(cmd, sizeof(cmd)) < 0) {
 		return -1;
 	}
@@ -280,35 +245,8 @@ int floppy_cmd_configure(uint8_t eis, uint8_t poll, uint8_t fifothr)
 {
 	uint8_t cmd[] = { 0x13, 0x00, ((eis << 6) | (poll << 4) | fifothr), 0x00 };
 
-	DEBUG("Floppy CMD configure");
-
 	if (floppy_write_cmd(cmd, sizeof(cmd)) < 0) {
 		return -1;
-	}
-
-	return 0;
-}
-
-int floppy_cmd_dumpreg(void)
-{
-	uint8_t buff[10];
-
-	DEBUG("Floppy CMD dumpreg");
-
-	/* Stricly for debug */
-	if (floppy_fifo_write(0x0E) < 0) {
-		return -1;
-	}
-
-	for (size_t i = 0; i < 10; ++i) {
-		if (floppy_fifo_read(buff + i) < 0) {
-			return -1;
-		}
-	}
-
-	printf("82077 dump regs:\r\n");
-	for (size_t i = 0; i < 10; ++i) {
-		printf("%zu: 0x%02x\r\n", i, buff[i]);
 	}
 
 	return 0;
@@ -317,8 +255,6 @@ int floppy_cmd_dumpreg(void)
 int floppy_cmd_lock(uint8_t lock)
 {
 	uint8_t readback;
-
-	DEBUG("Floppy CMD lock");
 
 	if (floppy_fifo_write((lock << 7) | 0x14) < 0) {
 		return -1;
@@ -394,8 +330,6 @@ void floppy_init(void)
 	floppy_cmd_sense_interrupt(&st0, &pcn);
 
 	floppy_enable(0);
-
-	floppy_cmd_dumpreg();
 
 	floppy_enable(1);
 	for (volatile unsigned int i = 1; i != 0; ++i);

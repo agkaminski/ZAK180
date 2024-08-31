@@ -22,12 +22,7 @@ int putchar(int c)
 int main(void)
 {
 	uart_init();
-
-	floppy_dumpregs();
-
 	floppy_init();
-
-	floppy_dumpregs();
 
 	return 0;
 }
