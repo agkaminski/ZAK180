@@ -22,6 +22,9 @@ int putchar(int c)
 int main(void)
 {
 	uart_init();
+
+	printf("ZAK180 Bootloader rev " VERSION "\r\n");
+
 	floppy_init();
 
 	return 0;
