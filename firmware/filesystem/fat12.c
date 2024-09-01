@@ -32,7 +32,7 @@ static int fat12_write_sector(struct fat12_fs *fs, uint16_t n)
 	return fs->cb.write_sector(n, fs->sbuff);
 }
 
-int fat12_fat_get(struct fat12_fs *fs, uint16_t n, uint16_t *cluster)
+static int fat12_fat_get(struct fat12_fs *fs, uint16_t n, uint16_t *cluster)
 {
 	if (CLUSTER2SECTOR(n) > fs->size) {
 		return -1;
@@ -83,7 +83,7 @@ int fat12_fat_get(struct fat12_fs *fs, uint16_t n, uint16_t *cluster)
 	return 0;
 }
 
-int fat12_fat_set(struct fat12_fs *fs,  uint16_t n, uint16_t cluster)
+static int fat12_fat_set(struct fat12_fs *fs,  uint16_t n, uint16_t cluster)
 {
 	if ((CLUSTER2SECTOR(n) > fs->size) || (cluster & 0xF000)) {
 		return -1;
@@ -153,7 +153,7 @@ int fat12_fat_set(struct fat12_fs *fs,  uint16_t n, uint16_t cluster)
 	return 0;
 }
 
-int fat12_mount(struct fat12_fs *fs, struct fat12_cb *callback)
+int fat12_mount(struct fat12_fs *fs, const struct fat12_cb *callback)
 {
 	int err;
 	uint16_t t16;

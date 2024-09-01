@@ -52,13 +52,8 @@ struct fat12_dentry {
 
 //};
 
-int fat12_fat_get(struct fat12_fs *fs, uint16_t n, uint16_t *cluster);
-
-int fat12_fat_set(struct fat12_fs *fs,  uint16_t n, uint16_t cluster);
-
-
 int fat12_create(struct fat12_fs *fs, struct fat12_file *dir, const char *name, uint8_t attr);
 
-int fat12_mount(struct fat12_fs *fs, struct fat12_cb *callback);
+int fat12_mount(struct fat12_fs *fs, const struct fat12_cb *callback);
 
 #endif

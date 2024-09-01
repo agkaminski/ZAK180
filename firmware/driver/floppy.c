@@ -10,6 +10,8 @@
 #include "floppy.h"
 #include "floppy_cmd.h"
 
+volatile uint8_t media_enabled;
+
 static uint8_t floppy_lba2cyl(uint16_t lba)
 {
 	return lba / (2 * 18);
@@ -28,14 +30,19 @@ static uint8_t floppy_lba2sector(uint16_t lba)
 void floppy_access(uint8_t enable)
 {
 	floppy_cmd_enable(enable);
+	media_enabled = enable;
 }
-#include <stdio.h>
+
 int floppy_read_sector(uint16_t lba, void *buff)
 {
 	uint8_t c = floppy_lba2cyl(lba);
 	uint8_t h = floppy_lba2head(lba);
 	uint8_t r = floppy_lba2sector(lba);
 	struct floppy_cmd_result res;
+
+	if (!media_enabled) {
+		floppy_access(1);
+	}
 
 	for (uint8_t hard = 3; hard != 0; --hard) {
 		for (uint8_t retry = 3; retry != 0; --retry) {
@@ -81,6 +88,10 @@ int floppy_write_sector(uint16_t lba, const void *buff)
 	uint8_t h = floppy_lba2head(lba);
 	uint8_t r = floppy_lba2sector(lba);
 	struct floppy_cmd_result res;
+
+	if (!media_enabled) {
+		floppy_access(1);
+	}
 
 	for (uint8_t hard = 3; hard != 0; --hard) {
 		for (uint8_t retry = 3; retry != 0; --retry) {
