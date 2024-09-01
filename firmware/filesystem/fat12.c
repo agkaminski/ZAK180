@@ -153,6 +153,102 @@ static int fat12_fat_set(struct fat12_fs *fs,  uint16_t n, uint16_t cluster)
 	return 0;
 }
 
+/* Find a cluster associated with the offset */
+static int fat12_file_seek(struct fat12_fs *fs, struct fat12_file *file, uint32_t offs)
+{
+	uint16_t last = file->last_offs / (uint32_t)FAT12_SECTOR_SIZE;
+	uint16_t new = offs / (uint32_t)FAT12_SECTOR_SIZE;
+
+	if (new < last) {
+		/* Have to start all over again*/
+		last = 0;
+		file->last_cluster = file->dentry.cluster;
+	}
+
+	while (new > last) {
+		uint16_t c;
+		if (fat12_fat_get(fs, file->last_cluster, &c) < 0) {
+			return -1;
+		}
+
+		if ((c == CLUSTER_FREE) || (c == CLUSTER_RESERVED)) {
+			return -1;
+		}
+
+		if (c == CLUSTER_END) {
+			return 1; /* EOF */
+		}
+
+		file->last_cluster = c;
+		file->last_offs = (uint32_t)last * (uint32_t)FAT12_SECTOR_SIZE;
+
+		++last;
+	}
+
+	return 0;
+}
+
+int fat12_file_read(struct fat12_fs *fs, struct fat12_file *file, void *buff, size_t bufflen, uint32_t offs)
+{
+	uint16_t sector;
+	size_t len = 0;
+	uint32_t fsize = (file == NULL) ? FAT12_ROOT_SIZE * FAT12_SECTOR_SIZE : file->dentry.size;
+
+	if (offs >= fsize) {
+		return 0;
+	}
+	else if (offs + (uint32_t)bufflen > fsize) {
+		bufflen = fsize - offs;
+	}
+	if (bufflen > 0x7FFF) {
+		/* Reval has to fit in int (int16_t) */
+		bufflen = 0x7FFF;
+	}
+
+	while (len < bufflen) {
+		/* Root dir has to be processed separatelly, as it has negative cluster index */
+		if (file == NULL) {
+			sector = 1 + (FAT12_FAT_COPIES * FAT12_FAT_SIZE) + (offs / FAT12_SECTOR_SIZE);
+		}
+		else {
+			int err = fat12_file_seek(fs, file, offs);
+			if (err < 0) {
+				return -1;
+			}
+
+			if (err > 0) {
+				/* EOF */
+				break;
+			}
+
+			sector = CLUSTER2SECTOR(file->last_cluster);
+		}
+
+		if (fat12_read_sector(fs, sector) < 0) {
+			return -1;
+		}
+
+		uint16_t pos = offs % FAT12_SECTOR_SIZE;
+		uint16_t chunk = FAT12_SECTOR_SIZE - pos;
+
+		if (chunk > bufflen - len) {
+			chunk = bufflen - len;
+		}
+
+		memcpy(buff + len, fs->sbuff + pos, chunk);
+
+		len += chunk;
+		offs += chunk;
+	}
+
+	return (int)len;
+}
+
+int fat12_file_open(struct fat12_fs *fs, struct fat12_dentry *entry, const char *path)
+{
+	return 0;
+}
+
 int fat12_mount(struct fat12_fs *fs, const struct fat12_cb *callback)
 {
 	int err;

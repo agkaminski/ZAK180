@@ -7,6 +7,7 @@
 #define FAT12_H_
 
 #include <stdint.h>
+#include <stddef.h>
 
 #define FAT12_ATTR_READONLY (1 << 0)
 #define FAT12_ATTR_HIDDEN   (1 << 1)
@@ -48,11 +49,15 @@ struct fat12_dentry {
 	uint32_t size;
 };
 
-//struct fat12_file {
+struct fat12_file {
+	struct fat12_dentry dentry;
+	uint16_t last_cluster;
+	uint32_t last_offs;
+};
 
-//};
+int fat12_file_open(struct fat12_fs *fs, struct fat12_dentry *entry, const char *path);
 
-int fat12_create(struct fat12_fs *fs, struct fat12_file *dir, const char *name, uint8_t attr);
+int fat12_file_read(struct fat12_fs *fs, struct fat12_file *file, void *buff, size_t bufflen, uint32_t offs);
 
 int fat12_mount(struct fat12_fs *fs, const struct fat12_cb *callback);
 
