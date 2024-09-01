@@ -29,7 +29,7 @@ void floppy_access(uint8_t enable)
 {
 	floppy_cmd_enable(enable);
 }
-
+#include <stdio.h>
 int floppy_read_sector(uint16_t lba, void *buff)
 {
 	uint8_t c = floppy_lba2cyl(lba);
@@ -43,7 +43,7 @@ int floppy_read_sector(uint16_t lba, void *buff)
 
 			/* Check the result, we expect abnormal termination
 			* and EOT, anything else is a fail. */
-			if ((ret != 0) || ((res.st0 & 0xF) != 0x40) || (res.st1 != 0x80)) {
+			if ((ret != 0) || ((res.st0 & 0xF0) != 0x40) || (res.st1 != 0x80)) {
 				continue;
 			}
 

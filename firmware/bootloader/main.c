@@ -45,7 +45,17 @@ int main(void)
 	}
 
 	floppy_access(1);
+/*
+	while (1) {
+		int ret = floppy_read_sector(0, sector);
+		printf("res: %d\r\n", ret);
+		dump(0);
 
+		ret = floppy_read_sector(80 * 18 * 2, sector);
+		printf("res: %d\r\n", ret);
+		dump(80 * 18 * 2);
+	}
+*/
 	for (uint16_t i = 0; i < 80 * 18 * 2; i += (18 * 2)) {
 		int ret = floppy_read_sector(i, sector);
 		printf("res: %d\r\n", ret);
