@@ -22,8 +22,6 @@ ${TARGET}.bin: ${TARGET}.hex
 	du -b ${TARGET}.bin
 
 ${TARGET}.hex: ${OBJ}
-	@cd ../driver && $(MAKE) ${DRIVERS} --no-print-directory
-	@cd ../filesystem && $(MAKE) ${FILESYSTEMS} --no-print-directory
 	@sdcc -o ${TARGET}.hex -l ${LIB} ${CFLAGS} ${LDFLAGS} ${OBJ}
 
 %.rel: %.c
@@ -34,6 +32,4 @@ ${TARGET}.hex: ${OBJ}
 
 clean:
 	@rm -f *.bin *.lk *.map *.mem *.lst *.rel *.rst *.sym *.asm *.ihx *.noi *.hex
-	@cd ../driver && $(MAKE) clean --no-print-directory
-	@cd ../filesystem && $(MAKE) clean --no-print-directory
 
