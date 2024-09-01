@@ -122,17 +122,63 @@ static int floppy_cmd_write_cmd(uint8_t *cmd, uint8_t len)
 /* Slightly optimised function, we barely are able to keep up the pace */
 static void floppy_cmd_sector_read(uint8_t *buff)
 {
-	uint16_t i = 0;
+	(void)buff;
 
-	do {
-		uint8_t msr = MSR;
-		if (!(msr & 0x20)) {
-			break;
-		}
-		if (msr & 0x80) {
-			buff[i++] = FIFO;
-		}
-	} while (i != 512);
+	/* c  - loop counter
+	 * de - retry counter
+	 * hl - buff pointer
+	 */
+
+__asm
+	ld c, #0
+	ld de, #0xFFFF
+loop0:
+	in0 a, (#_MSR)
+
+	bit 5, a
+	jr z, fin
+	bit 7, a
+	jr nz, data0
+
+	dec de
+	ld a, d
+	or e
+	jr z, fin
+	jr loop0
+
+data0:
+	in0 a, (#_FIFO)
+	ld (hl), a
+	inc hl
+	inc c
+	jr nz, loop0
+
+	ld de, #0xFFFF
+loop1:
+	in0 a, (#_MSR)
+
+	bit 5, a
+	jr z, fin
+	bit 7, a
+	jr nz, data1
+
+	dec de
+	ld a, d
+	or e
+	jr z, fin
+	jr loop1
+
+data1:
+	in0 a, (#_FIFO)
+	ld (hl), a
+	inc hl
+	inc c
+	jr nz, loop1
+
+fin:
+	ret
+
+__endasm;
 }
 
 /* TODO this has to be critical */
@@ -157,17 +203,63 @@ int floppy_cmd_read_data(uint8_t c, uint8_t h, uint8_t r, uint8_t *buff, struct 
 /* Slightly optimised function, we barely are able to keep up the pace */
 static void floppy_cmd_sector_write(const uint8_t *buff)
 {
-	uint16_t i = 0;
+	(void)buff;
 
-	do {
-		uint8_t msr = MSR;
-		if (!(msr & 0x20)) {
-			break;
-		}
-		if (msr & 0x80) {
-			FIFO = buff[i++];
-		}
-	} while (i != 512);
+	/* c  - loop counter
+	 * de - retry counter
+	 * hl - buff pointer
+	 */
+
+__asm
+	ld c, #0
+	ld de, #0xFFFF
+loop0:
+	in0 a, (#_MSR)
+
+	bit 5, a
+	jr z, fin
+	bit 7, a
+	jr nz, data0
+
+	dec de
+	ld a, d
+	or e
+	jr z, fin
+	jr loop0
+
+data0:
+	ld a, (hl)
+	out0 (#_FIFO), a
+	inc hl
+	inc c
+	jr nz, loop0
+
+	ld de, #0xFFFF
+loop1:
+	in0 a, (#_MSR)
+
+	bit 5, a
+	jr z, fin
+	bit 7, a
+	jr nz, data1
+
+	dec de
+	ld a, d
+	or e
+	jr z, fin
+	jr loop1
+
+data1:
+	ld a, (hl)
+	out0 (#_FIFO), a
+	inc hl
+	inc c
+	jr nz, loop1
+
+fin:
+	ret
+
+__endasm;
 }
 
 int floppy_cmd_write_data(uint8_t c, uint8_t h, uint8_t r, const uint8_t *buff, struct floppy_cmd_result *res)
