@@ -48,7 +48,7 @@ static int floopy_cmd_is_busy(void)
 static void floppy_cmd_delay(void)
 {
 	/* Just some random amount of delay */
-	for (volatile unsigned int i = 1; i != 0; ++i);
+	for (volatile unsigned int i = 32768; i != 0; ++i);
 }
 
 static int floppy_cmd_fifo_write(uint8_t data)
@@ -422,6 +422,7 @@ void floppy_cmd_enable(int8_t enable)
 	}
 }
 
+/* FIXME DSKCHG not clearing, persistent error */
 int floppy_cmd_eject_status(void)
 {
 	if (DIR & (1 << 7)) {
@@ -432,7 +433,7 @@ int floppy_cmd_eject_status(void)
 		 * otherwise if we hit the track the controller
 		 * thinks we're already at, there will be no
 		 * operation and Disk Change flag won't be cleared. */
-		if ((floppy_cmd_seek(1) < 0) | (floppy_cmd_recalibrate() < 0)) {
+		if ((floppy_cmd_seek(10) < 0) || (floppy_cmd_recalibrate() < 0)) {
 			/* Seek failed, most likely ejected */
 			return FLOPPY_CMD_NO_MEDIA;
 		}

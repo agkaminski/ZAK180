@@ -51,9 +51,9 @@ int main(void)
 		printf("res: %d\r\n", ret);
 		dump(0);
 
-		ret = floppy_read_sector(80 * 18 * 2, sector);
+		ret = floppy_read_sector(79 * 18 * 2, sector);
 		printf("res: %d\r\n", ret);
-		dump(80 * 18 * 2);
+		dump(79 * 18 * 2);
 	}
 */
 	for (uint16_t i = 0; i < 80 * 18 * 2; i += (18 * 2)) {
