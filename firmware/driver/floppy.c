@@ -88,7 +88,7 @@ int floppy_write_sector(uint16_t lba, const void *buff)
 
 			/* Check the result, we expect abnormal termination
 			* and EOT, anything else is a fail. */
-			if ((ret != 0) || ((res.st0 & 0xF) != 0x40) || (res.st1 != 0x80)) {
+			if ((ret != 0) || ((res.st0 & 0xF0) != 0x40) || (res.st1 != 0x80)) {
 				continue;
 			}
 

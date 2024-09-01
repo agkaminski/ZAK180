@@ -227,7 +227,7 @@ __asm
 	jr 00000$
 
 00001$:
-	ld (hl), a
+	ld a, (hl)
 	out0 (#_FIFO), a
 	inc hl
 	inc c
@@ -249,7 +249,7 @@ __asm
 	jr 00002$
 
 00003$:
-	ld (hl), a
+	ld a, (hl)
 	out0 (#_FIFO), a
 	inc hl
 	inc c
@@ -294,9 +294,6 @@ static int floppy_cmd_sense_interrupt(uint8_t *st0, uint8_t *pcn)
 				return -1;
 			}
 			break;
-		}
-		else {
-			printf("FUCKUP\r\n");
 		}
 	}
 
