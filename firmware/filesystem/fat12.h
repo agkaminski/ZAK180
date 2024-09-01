@@ -28,6 +28,7 @@ struct fat12_cb {
 
 struct fat12_fs {
 	uint8_t sbuff[FAT12_SECTOR_SIZE]; /* Sector buffer */
+	uint16_t sno;                     /* Number of the sector in the buffer */
 	struct fat12_cb cb;               /* Physical media callbacks */
 	uint16_t size;                    /* Total media size in sectors */
 };

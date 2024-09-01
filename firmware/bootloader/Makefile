@@ -19,7 +19,7 @@ all: ${TARGET}.bin
 
 ${TARGET}.bin: ${TARGET}.hex
 	@objcopy -Iihex -Obinary ${TARGET}.hex ${TARGET}.bin
-	du -h ${TARGET}.bin
+	du -b ${TARGET}.bin
 
 ${TARGET}.hex: ${OBJ}
 	@cd ../driver && $(MAKE) ${DRIVERS} --no-print-directory

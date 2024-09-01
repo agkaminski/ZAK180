@@ -24,9 +24,12 @@ int fat12_fat_get(struct fat12_fs *fs, uint16_t n, uint16_t *cluster)
 	uint16_t sector = 1 + (idx / FAT12_SECTOR_SIZE);
 	uint16_t pos = idx & (FAT12_SECTOR_SIZE - 1);
 
-	int ret = fs->cb.read_sector(sector, fs->sbuff);
-	if (ret < 0) {
-		return ret;
+	if (fs->sno != sector) {
+		int ret = fs->cb.read_sector(sector, fs->sbuff);
+		if (ret < 0) {
+			return ret;
+		}
+		fs->sno = sector;
 	}
 
 	if (n & 1) {
@@ -42,10 +45,11 @@ int fat12_fat_get(struct fat12_fs *fs, uint16_t n, uint16_t *cluster)
 	pos = idx & (FAT12_SECTOR_SIZE - 1);
 
 	if (sector != sector_next) {
-		ret = fs->cb.read_sector(sector_next, fs->sbuff);
+		int ret = fs->cb.read_sector(sector_next, fs->sbuff);
 		if (ret < 0) {
 			return ret;
 		}
+		fs->sno = sector_next;
 	}
 
 	if (n & 1) {
@@ -75,9 +79,12 @@ int fat12_fat_set(struct fat12_fs *fs,  uint16_t n, uint16_t cluster)
 	uint16_t sector = 1 + (idx / FAT12_SECTOR_SIZE);
 	uint16_t pos = idx & (FAT12_SECTOR_SIZE - 1);
 
-	int ret = fs->cb.read_sector(sector, fs->sbuff);
-	if (ret < 0) {
-		return ret;
+	if (fs->sno != sector) {
+		int ret = fs->cb.read_sector(sector, fs->sbuff);
+		if (ret < 0) {
+			return ret;
+		}
+		fs->sno = sector;
 	}
 
 	if (n & 1) {
@@ -93,7 +100,13 @@ int fat12_fat_set(struct fat12_fs *fs,  uint16_t n, uint16_t cluster)
 	pos = idx & (FAT12_SECTOR_SIZE - 1);
 
 	if (sector != sector_next) {
-		ret = fs->cb.write_sector(sector, fs->sbuff);
+		int ret = fs->cb.write_sector(sector, fs->sbuff);
+		if (ret < 0) {
+			return ret;
+		}
+
+		/* Need to update FAT copy too */
+		ret = fs->cb.write_sector(sector + 9, fs->sbuff);
 		if (ret < 0) {
 			return ret;
 		}
@@ -102,6 +115,7 @@ int fat12_fat_set(struct fat12_fs *fs,  uint16_t n, uint16_t cluster)
 		if (ret < 0) {
 			return ret;
 		}
+		fs->sno = sector_next;
 
 		sector = sector_next;
 	}
@@ -114,7 +128,13 @@ int fat12_fat_set(struct fat12_fs *fs,  uint16_t n, uint16_t cluster)
 		fs->sbuff[pos] |= (cluster >> 8) & 0x0F;
 	}
 
-	ret = fs->cb.write_sector(sector, fs->sbuff);
+	int ret = fs->cb.write_sector(sector, fs->sbuff);
+	if (ret < 0) {
+		return ret;
+	}
+
+	/* Need to update FAT copy too */
+	ret = fs->cb.write_sector(sector + 9, fs->sbuff);
 	if (ret < 0) {
 		return ret;
 	}
@@ -136,6 +156,7 @@ int fat12_mount(struct fat12_fs *fs, struct fat12_cb *callback)
 	if (err < 0) {
 		return err;
 	}
+	fs->sno = 0;
 
 	/* Check if the filesystem is present and
 	 * what we expect it to be. FAT12 is LE,
