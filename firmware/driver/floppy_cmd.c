@@ -132,50 +132,50 @@ static void floppy_cmd_sector_read(uint8_t *buff)
 __asm
 	ld c, #0
 	ld de, #0xFFFF
-loop0:
+00000$: /* SDCC local labels suck */
 	in0 a, (#_MSR)
 
 	bit 5, a
-	jr z, fin
+	jr z, 00004$
 	bit 7, a
-	jr nz, data0
+	jr nz, 00001$
 
 	dec de
 	ld a, d
 	or e
-	jr z, fin
-	jr loop0
+	jr z, 00004$
+	jr 00000$
 
-data0:
+00001$:
 	in0 a, (#_FIFO)
 	ld (hl), a
 	inc hl
 	inc c
-	jr nz, loop0
+	jr nz, 00000$
 
 	ld de, #0xFFFF
-loop1:
+00002$:
 	in0 a, (#_MSR)
 
 	bit 5, a
-	jr z, fin
+	jr z, 00004$
 	bit 7, a
-	jr nz, data1
+	jr nz, 00003$
 
 	dec de
 	ld a, d
 	or e
-	jr z, fin
-	jr loop1
+	jr z, 00004$
+	jr 00002$
 
-data1:
+00003$:
 	in0 a, (#_FIFO)
 	ld (hl), a
 	inc hl
 	inc c
-	jr nz, loop1
+	jr nz, 00002$
 
-fin:
+00004$:
 	ret
 
 __endasm;
@@ -213,50 +213,50 @@ static void floppy_cmd_sector_write(const uint8_t *buff)
 __asm
 	ld c, #0
 	ld de, #0xFFFF
-loop0:
+00000$:
 	in0 a, (#_MSR)
 
 	bit 5, a
-	jr z, fin
+	jr z, 00004$
 	bit 7, a
-	jr nz, data0
+	jr nz, 00001$
 
 	dec de
 	ld a, d
 	or e
-	jr z, fin
-	jr loop0
+	jr z, 00004$
+	jr 00000$
 
-data0:
-	ld a, (hl)
+00001$:
+	ld (hl), a
 	out0 (#_FIFO), a
 	inc hl
 	inc c
-	jr nz, loop0
+	jr nz, 00000$
 
 	ld de, #0xFFFF
-loop1:
+00002$:
 	in0 a, (#_MSR)
 
 	bit 5, a
-	jr z, fin
+	jr z, 00004$
 	bit 7, a
-	jr nz, data1
+	jr nz, 00003$
 
 	dec de
 	ld a, d
 	or e
-	jr z, fin
-	jr loop1
+	jr z, 00004$
+	jr 00002$
 
-data1:
-	ld a, (hl)
+00003$:
+	ld (hl), a
 	out0 (#_FIFO), a
 	inc hl
 	inc c
-	jr nz, loop1
+	jr nz, 00002$
 
-fin:
+00004$:
 	ret
 
 __endasm;
