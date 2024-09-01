@@ -20,8 +20,16 @@ struct fat12_cb {
 	int (*write_sector)(uint16_t sector, void *buff);
 };
 
-struct fat12_fs {
+#define FAT12_SECTOR_SIZE 512
+#define FAT12_FAT_SIZE    9
+#define FAT12_FAT_COPIES  2
+#define FAT12_ROOT_SIZE   14
+#define FAT12_DATA_START  (1 + (FAT12_FAT_COPIES * FAT12_FAT_SIZE) + FAT12_ROOT_SIZE)
 
+struct fat12_fs {
+	uint8_t sbuff[FAT12_SECTOR_SIZE]; /* Sector buffer */
+	struct fat12_cb cb;               /* Physical media callbacks */
+	uint16_t size;                    /* Total media size in sectors */
 };
 
 struct fat12_dentry {
@@ -39,10 +47,17 @@ struct fat12_dentry {
 	uint32_t size;
 };
 
-struct fat12_file {
+//struct fat12_file {
 
-};
+//};
+
+int fat12_fat_get(struct fat12_fs *fs, uint16_t n, uint16_t *cluster);
+
+int fat12_fat_set(struct fat12_fs *fs,  uint16_t n, uint16_t cluster);
+
 
 int fat12_create(struct fat12_fs *fs, struct fat12_file *dir, const char *name, uint8_t attr);
 
 int fat12_mount(struct fat12_fs *fs, struct fat12_cb *callback);
+
+#endif

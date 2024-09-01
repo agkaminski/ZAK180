@@ -9,6 +9,7 @@
 
 #include "../driver/uart.h"
 #include "../driver/floppy.h"
+#include "../filesystem/fat12.h"
 
 int putchar(int c)
 {
@@ -20,13 +21,15 @@ int putchar(int c)
 }
 
 uint8_t sector[512];
+struct fat12_fs fs;
+struct fat12_cb cb;
 
 
 static void dump(size_t base)
 {
-	for (size_t i = 0; i < 512; i += 16) {
+	for (size_t i = 0; i < 512; i += 32) {
 		printf("%06lx: ", i + ((long)base * 512));
-		for (size_t j = 0; j < 16; ++j) {
+		for (size_t j = 0; j < 32; ++j) {
 			printf("%02x ", sector[i + j]);
 		}
 		printf("\r\n");
@@ -56,11 +59,39 @@ int main(void)
 		dump(79 * 18 * 2);
 	}
 */
+/*
 	for (uint16_t i = 0; i < 80 * 18 * 2; i += (18 * 2)) {
 		int ret = floppy_read_sector(i, sector);
 		printf("res: %d\r\n", ret);
 		dump(i);
 	}
+*/
+/*
+	for (uint16_t i = 1; i < 10; ++i) {
+		floppy_read_sector(i, sector);
+		dump(i);
+	}
+*/
+
+	cb.read_sector = floppy_read_sector;
+	cb.write_sector = floppy_write_sector;
+	int ret = fat12_mount(&fs, &cb);
+	printf("Mount ret = %d\r\n", ret);
+
+	for (uint16_t i = 0; i < 64; ++i) {
+		uint16_t cluster;
+		if (fat12_fat_get(&fs, i, &cluster) < 0) {
+			printf("FAT get failed\r\n");
+			break;
+		}
+
+		printf("Cluster %d: %03x\r\n", i, cluster);
+	}
+
+	/*
+	000200: f0 ff ff 00 40 00 05 60 00 07 80 00 09 a0 00 ff
+	000210: 0f 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+	*/
 
 	floppy_access(0);
 
