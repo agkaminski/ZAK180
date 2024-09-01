@@ -2,7 +2,7 @@
 
 set -e
 
-OP=$1
+OP="$1 $2"
 OP=${OP:=all}
 
 (cd driver && make $OP)

@@ -55,7 +55,7 @@ struct fat12_file {
 	uint32_t last_offs;
 };
 
-int fat12_file_open(struct fat12_fs *fs, struct fat12_dentry *entry, const char *path);
+int fat12_file_open(struct fat12_fs *fs, struct fat12_file *file, const char *path);
 
 int fat12_file_read(struct fat12_fs *fs, struct fat12_file *file, void *buff, size_t bufflen, uint32_t offs);
 

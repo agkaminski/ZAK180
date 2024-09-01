@@ -4,6 +4,7 @@
  */
 
 #include <string.h>
+#include <ctype.h>
 
 #include "fat12.h"
 
@@ -244,8 +245,110 @@ int fat12_file_read(struct fat12_fs *fs, struct fat12_file *file, void *buff, si
 	return (int)len;
 }
 
-int fat12_file_open(struct fat12_fs *fs, struct fat12_dentry *entry, const char *path)
+static int fat12_file_name_cmp(const struct fat12_dentry *entry, const char *path)
 {
+	uint8_t i, pos;
+	char c;
+
+	for (i = 0; i < sizeof(entry->fname); ++i) {
+		c = toupper(path[i]);
+
+		if (entry->fname[i] == '\0') {
+			break;
+		}
+
+		if (c == '/' || c == '\0') {
+			return 1;
+		}
+
+		if (entry->fname[i] != c) {
+			return 1;
+		}
+	}
+
+	pos = i;
+	if (path[i] == '.') {
+		++pos;
+	}
+	else {
+		return (path[i] != '/' && path[i] != '\0') ? 1 : 0;
+	}
+
+	for (i = 0; i < sizeof(entry->extension); ++i) {
+		c = toupper(path[pos + i]);
+
+		if (entry->extension[i] == '\0') {
+			if (c != '/' && c != '\0') {
+				return 1;
+			}
+
+			break;
+		}
+
+		if (entry->extension[i] != c) {
+			return 1;
+		}
+	}
+
+	return (path[pos + i] != '/' && path[pos + i] != '\0') ? 1 : 0;
+}
+
+int fat12_file_open(struct fat12_fs *fs, struct fat12_file *file, const char *path)
+{
+	uint8_t pos = 0;
+	struct fat12_file f, *fp = NULL; /* NULL means root dir */
+	struct fat12_dentry entry;
+
+	while (path[pos] == '/') {
+		++pos;
+	}
+
+	if (path[pos] == '\0') {
+		/* Root dir, no dentry available */
+		return 1;
+	}
+
+	while (1) {
+		/* Read current directory and find the relevant file */
+		for (uint32_t filepos = 0; ; filepos += sizeof(struct fat12_dentry)) {
+			int ret = fat12_file_read(fs, fp, &entry, sizeof(entry), filepos);
+			if (ret < 0) {
+				return ret;
+			}
+			else if (ret == 0) {
+				/* EOF, not found */
+				return -1; /* FIXME ENOENT */
+			}
+
+			if (fat12_file_name_cmp(&entry, path + pos) == 0) {
+				break;
+			}
+		}
+
+		/* Rewind to the next file in path */
+		while (path[pos] != '/' && path[pos] != '\0') {
+			++pos;
+		}
+
+		if (path[pos] == '\0') {
+			break;
+		}
+
+		/* If we found directory, then go to it next */
+		if (!(entry.attr & FAT12_ATTR_DIR)) {
+			/* Regular file is being used as directory, error */
+			return -1; /* FIXME ENOTDIR */
+		}
+
+		memcpy(&f.dentry, &entry, sizeof(entry));
+		f.last_cluster = 0;
+		f.last_offs = 0;
+		fp = &f;
+	}
+
+	memcpy(&file->dentry, &entry, sizeof(entry));
+	file->last_cluster = 0;
+	file->last_offs = 0;
 	return 0;
 }
 
