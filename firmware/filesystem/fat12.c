@@ -14,6 +14,24 @@
 #define CLUSTER_RESERVED 0xFF0
 #define CLUSTER_END      0xFFF
 
+static int fat12_read_sector(struct fat12_fs *fs, uint16_t n)
+{
+	int ret = 0;
+
+	if (n != fs->sno) {
+		ret = fs->cb.read_sector(n, fs->sbuff);
+		fs->sno = n; /* Update always, buffer is changed anyway */
+	}
+
+	return ret;
+}
+
+static int fat12_write_sector(struct fat12_fs *fs, uint16_t n)
+{
+	fs->sno = n;
+	return fs->cb.write_sector(n, fs->sbuff);
+}
+
 int fat12_fat_get(struct fat12_fs *fs, uint16_t n, uint16_t *cluster)
 {
 	if (CLUSTER2SECTOR(n) > fs->size) {
@@ -24,12 +42,9 @@ int fat12_fat_get(struct fat12_fs *fs, uint16_t n, uint16_t *cluster)
 	uint16_t sector = 1 + (idx / FAT12_SECTOR_SIZE);
 	uint16_t pos = idx & (FAT12_SECTOR_SIZE - 1);
 
-	if (fs->sno != sector) {
-		int ret = fs->cb.read_sector(sector, fs->sbuff);
-		if (ret < 0) {
-			return ret;
-		}
-		fs->sno = sector;
+	int ret = fat12_read_sector(fs, sector);
+	if (ret < 0) {
+		return ret;
 	}
 
 	if (n & 1) {
@@ -45,11 +60,10 @@ int fat12_fat_get(struct fat12_fs *fs, uint16_t n, uint16_t *cluster)
 	pos = idx & (FAT12_SECTOR_SIZE - 1);
 
 	if (sector != sector_next) {
-		int ret = fs->cb.read_sector(sector_next, fs->sbuff);
+		ret = fat12_read_sector(fs, sector_next);
 		if (ret < 0) {
 			return ret;
 		}
-		fs->sno = sector_next;
 	}
 
 	if (n & 1) {
@@ -79,16 +93,14 @@ int fat12_fat_set(struct fat12_fs *fs,  uint16_t n, uint16_t cluster)
 	uint16_t sector = 1 + (idx / FAT12_SECTOR_SIZE);
 	uint16_t pos = idx & (FAT12_SECTOR_SIZE - 1);
 
-	if (fs->sno != sector) {
-		int ret = fs->cb.read_sector(sector, fs->sbuff);
-		if (ret < 0) {
-			return ret;
-		}
-		fs->sno = sector;
+	int ret = fat12_read_sector(fs, sector);
+	if (ret < 0) {
+		return ret;
 	}
 
 	if (n & 1) {
-		fs->sbuff[pos] = (uint8_t)cluster >> 4;
+		fs->sbuff[pos] &= 0x0F;
+		fs->sbuff[pos] |= (uint8_t)cluster << 4;
 	}
 	else {
 		fs->sbuff[pos] = (uint8_t)cluster;
@@ -100,23 +112,21 @@ int fat12_fat_set(struct fat12_fs *fs,  uint16_t n, uint16_t cluster)
 	pos = idx & (FAT12_SECTOR_SIZE - 1);
 
 	if (sector != sector_next) {
-		int ret = fs->cb.write_sector(sector, fs->sbuff);
+		ret = fat12_write_sector(fs, sector);
 		if (ret < 0) {
 			return ret;
 		}
 
 		/* Need to update FAT copy too */
-		ret = fs->cb.write_sector(sector + 9, fs->sbuff);
+		ret = fat12_write_sector(fs, sector + FAT12_FAT_SIZE);
 		if (ret < 0) {
 			return ret;
 		}
 
-		ret = fs->cb.read_sector(sector_next, fs->sbuff);
+		ret = fat12_read_sector(fs, sector_next);
 		if (ret < 0) {
 			return ret;
 		}
-		fs->sno = sector_next;
-
 		sector = sector_next;
 	}
 
@@ -128,13 +138,14 @@ int fat12_fat_set(struct fat12_fs *fs,  uint16_t n, uint16_t cluster)
 		fs->sbuff[pos] |= (cluster >> 8) & 0x0F;
 	}
 
-	int ret = fs->cb.write_sector(sector, fs->sbuff);
+	/* Need to update FAT copy too */
+	ret = fat12_write_sector(fs, sector + FAT12_FAT_SIZE);
 	if (ret < 0) {
 		return ret;
 	}
 
-	/* Need to update FAT copy too */
-	ret = fs->cb.write_sector(sector + 9, fs->sbuff);
+	/* Update main after copy to adjust fs->sno */
+	ret = fat12_write_sector(fs, sector);
 	if (ret < 0) {
 		return ret;
 	}

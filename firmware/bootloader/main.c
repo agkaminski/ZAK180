@@ -78,7 +78,42 @@ int main(void)
 	int ret = fat12_mount(&fs, &cb);
 	printf("Mount ret = %d\r\n", ret);
 
-	for (uint16_t i = 0; i < 64; ++i) {
+	for (uint16_t i = 0; i < 32; ++i) {
+		uint16_t cluster;
+		if (fat12_fat_get(&fs, i, &cluster) < 0) {
+			printf("FAT get failed\r\n");
+			break;
+		}
+
+		printf("Cluster %d: %03x\r\n", i, cluster);
+	}
+
+	fat12_fat_set(&fs, 24, 0x888);
+	fat12_fat_set(&fs, 25, 0x999);
+	fat12_fat_set(&fs, 26, 0xAAA);
+	fat12_fat_set(&fs, 27, 0xBBB);
+	fat12_fat_set(&fs, 28, 0xCCC);
+	fat12_fat_set(&fs, 29, 0xDDD);
+	fat12_fat_set(&fs, 30, 0xEEE);
+
+	for (uint16_t i = 0; i < 32; ++i) {
+		uint16_t cluster;
+		if (fat12_fat_get(&fs, i, &cluster) < 0) {
+			printf("FAT get failed\r\n");
+			break;
+		}
+
+		printf("Cluster %d: %03x\r\n", i, cluster);
+	}
+
+	for (uint16_t i = 16; i < 32; ++i) {
+		if (fat12_fat_set(&fs, i, 0) < 0) {
+			printf("FAT set failed\r\n");
+			break;
+		}
+	}
+
+	for (uint16_t i = 0; i < 32; ++i) {
 		uint16_t cluster;
 		if (fat12_fat_get(&fs, i, &cluster) < 0) {
 			printf("FAT get failed\r\n");
