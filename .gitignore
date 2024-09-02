@@ -13,3 +13,5 @@
 *.noi
 *.hex
 *.lib
+fp-info-cache
+*.kicad_prl
