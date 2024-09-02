@@ -308,6 +308,7 @@ int fat12_file_open(struct fat12_fs *fs, struct fat12_file *file, const char *pa
 	uint8_t pos = 0;
 	struct fat12_file f, *fp = NULL; /* NULL means root dir */
 	struct fat12_dentry entry;
+	uint32_t filepos;
 
 	while (path[pos] == '/') {
 		++pos;
@@ -320,7 +321,7 @@ int fat12_file_open(struct fat12_fs *fs, struct fat12_file *file, const char *pa
 
 	while (1) {
 		/* Read current directory and find the relevant file */
-		for (uint32_t filepos = 0; ; filepos += sizeof(struct fat12_dentry)) {
+		for (filepos = 0; ; filepos += sizeof(struct fat12_dentry)) {
 			int ret = fat12_file_read(fs, fp, &entry, sizeof(entry), filepos);
 			if (ret < 0) {
 				return ret;
@@ -364,9 +365,25 @@ int fat12_file_open(struct fat12_fs *fs, struct fat12_file *file, const char *pa
 	file->recent_cluster = file->dentry.cluster;
 	file->recent_offs = 0;
 
-	/* Last seek params of the directory is the position of found entry */
-	file->dentry_cluster = f.recent_cluster;
-	file->dentry_offs = f.recent_offs % FAT12_SECTOR_SIZE;
+	file->dentry_sector = (fp == NULL) ?
+		(1 + (FAT12_FAT_COPIES * FAT12_FAT_SIZE) + (filepos / FAT12_SECTOR_SIZE)) :
+		CLUSTER2SECTOR(file->dentry.cluster);
+	file->dentry_offs = filepos % FAT12_SECTOR_SIZE;
+
+	return 0;
+}
+
+static int fat12_file_update(struct fat12_fs *fs, struct fat12_file *file)
+{
+	if (fat12_read_sector(fs, file->dentry_sector) < 0) {
+		return -1; /* FIXME EIO */
+	}
+
+	memcpy(fs->sbuff + file->dentry_offs, &file->dentry, sizeof(file->dentry));
+
+	if (fat12_write_sector(fs, file->dentry_sector) < 0) {
+		return -1; /* FIXME EIO */
+	}
 
 	return 0;
 }
@@ -374,6 +391,10 @@ int fat12_file_open(struct fat12_fs *fs, struct fat12_file *file, const char *pa
 int fat12_file_truncate(struct fat12_fs *fs, struct fat12_file *file, uint32_t nsize)
 {
 	uint32_t old_size = file->dentry.size;
+
+	if (file->dentry.size == nsize) {
+		return 0;
+	}
 
 	if (file->dentry.size < nsize) {
 		if (fat12_file_seek(fs, file, file->dentry.size - 1) < 0) {
@@ -456,17 +477,7 @@ int fat12_file_truncate(struct fat12_fs *fs, struct fat12_file *file, uint32_t n
 
 	file->dentry.size = nsize;
 
-	if (fat12_read_sector(fs, CLUSTER2SECTOR(file->dentry_cluster)) < 0) {
-		return -1; /* FIXME EIO */
-	}
-
-	memcpy(fs->sbuff + file->dentry_offs, &file->dentry, sizeof(file->dentry));
-
-	if (fat12_write_sector(fs, CLUSTER2SECTOR(file->dentry_cluster)) < 0) {
-		return -1; /* FIXME EIO */
-	}
-
-	return 0;
+	return fat12_file_update(fs, file);
 }
 
 int fat12_mount(struct fat12_fs *fs, const struct fat12_cb *callback)

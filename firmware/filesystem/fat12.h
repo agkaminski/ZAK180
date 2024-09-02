@@ -53,11 +53,13 @@ struct fat12_file {
 	struct fat12_dentry dentry;
 	uint16_t recent_cluster;
 	uint32_t recent_offs;
-	uint16_t dentry_cluster;
+	uint16_t dentry_sector;
 	uint16_t dentry_offs;
 };
 
 int fat12_file_open(struct fat12_fs *fs, struct fat12_file *file, const char *path);
+
+int fat12_file_truncate(struct fat12_fs *fs, struct fat12_file *file, uint32_t nsize);
 
 int fat12_file_read(struct fat12_fs *fs, struct fat12_file *file, void *buff, size_t bufflen, uint32_t offs);
 
