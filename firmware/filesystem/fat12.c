@@ -422,6 +422,10 @@ int fat12_file_truncate(struct fat12_fs *fs, struct fat12_file *file, uint32_t n
 					}
 				}
 
+				if (retry && (ccluster == file->recent_cluster)) {
+					return -1; /* FIXME ENOSPC */
+				}
+
 				if (ncluster == CLUSTER_FREE) {
 					break;
 				}
@@ -446,6 +450,7 @@ int fat12_file_truncate(struct fat12_fs *fs, struct fat12_file *file, uint32_t n
 			}
 
 			file->dentry.size += FAT12_SECTOR_SIZE;
+			start = ccluster;
 		}
 	}
 	else {

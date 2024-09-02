@@ -77,6 +77,11 @@ int main(void)
 
 	printf("file cluster: %u, size: %llu\r\n", file.dentry.cluster, file.dentry.size);
 
+	ret = fat12_file_truncate(&fs, &file, 16 * 1024);
+	printf("truncate ret: %d\r\n", ret);
+
+	printf("file cluster: %u, size: %llu\r\n", file.dentry.cluster, file.dentry.size);
+
 	floppy_access(0);
 
 	return 0;
