@@ -5,6 +5,7 @@
 
 #include <string.h>
 #include <ctype.h>
+#include <stdio.h>
 
 #include "fat12.h"
 
@@ -245,18 +246,32 @@ int fat12_file_read(struct fat12_fs *fs, struct fat12_file *file, void *buff, si
 	return (int)len;
 }
 
+static uint8_t fat12_file_namelen(const char *str, uint8_t max)
+{
+	uint8_t pos = max - 1;
+
+	while (pos != 0 && str[pos] == ' ') {
+		--pos;
+	}
+
+	if (str[pos] == ' ') {
+		return 0;
+	}
+
+	return pos + 1;
+}
+
 static int fat12_file_name_cmp(const struct fat12_dentry *entry, const char *path)
 {
 	uint8_t i, pos;
 	char c;
 
-	for (i = 0; i < sizeof(entry->fname); ++i) {
+	uint8_t len = fat12_file_namelen(entry->fname, sizeof(entry->fname));
+
+	printf("fname: %8s.%3s, looking for: %s\r\n", entry->fname, entry->extension, path);
+
+	for (i = 0; i < len; ++i) {
 		c = toupper(path[i]);
-
-		if (entry->fname[i] == '\0') {
-			break;
-		}
-
 		if (c == '/' || c == '\0') {
 			return 1;
 		}
@@ -266,23 +281,20 @@ static int fat12_file_name_cmp(const struct fat12_dentry *entry, const char *pat
 		}
 	}
 
+	len = fat12_file_namelen(entry->extension, sizeof(entry->extension));
+
 	pos = i;
 	if (path[i] == '.') {
 		++pos;
 	}
 	else {
-		return (path[i] != '/' && path[i] != '\0') ? 1 : 0;
+		return ((path[i] != '/' && path[i] != '\0') || len != 0) ? 1 : 0;
 	}
 
-	for (i = 0; i < sizeof(entry->extension); ++i) {
+	for (i = 0; i < len; ++i) {
 		c = toupper(path[pos + i]);
-
-		if (entry->extension[i] == '\0') {
-			if (c != '/' && c != '\0') {
-				return 1;
-			}
-
-			break;
+		if (c == '/' || c == '\0') {
+			return 1;
 		}
 
 		if (entry->extension[i] != c) {
@@ -315,12 +327,16 @@ int fat12_file_open(struct fat12_fs *fs, struct fat12_file *file, const char *pa
 			if (ret < 0) {
 				return ret;
 			}
-			else if (ret == 0) {
+			else if ((ret == 0) || (entry.fname[0] == 0x00)) {
 				/* EOF, not found */
 				return -1; /* FIXME ENOENT */
 			}
+			else if (entry.fname[0] == 0xE5) {
+				/* Deleted entry*/
+				continue;
+			}
 
-			if (fat12_file_name_cmp(&entry, path + pos) == 0) {
+			if (!fat12_file_name_cmp(&entry, path + pos)) {
 				break;
 			}
 		}
@@ -341,13 +357,13 @@ int fat12_file_open(struct fat12_fs *fs, struct fat12_file *file, const char *pa
 		}
 
 		memcpy(&f.dentry, &entry, sizeof(entry));
-		f.last_cluster = 0;
+		f.last_cluster = entry.cluster;
 		f.last_offs = 0;
 		fp = &f;
 	}
 
 	memcpy(&file->dentry, &entry, sizeof(entry));
-	file->last_cluster = 0;
+	file->last_cluster = file->dentry.cluster;
 	file->last_offs = 0;
 	return 0;
 }
