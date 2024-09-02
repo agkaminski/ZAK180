@@ -44,6 +44,12 @@ int floppy_read_sector(uint16_t lba, void *buff)
 		floppy_access(1);
 	}
 
+	int eject = floppy_cmd_eject_status();
+	if (eject != FLOPPY_CMD_NO_CHANGE) {
+		/* It was ejected, no point in reading from the new disk */
+		return eject;
+	}
+
 	for (uint8_t hard = 3; hard != 0; --hard) {
 		for (uint8_t retry = 3; retry != 0; --retry) {
 			int ret = floppy_cmd_read_data(c, h, r, buff, &res);
@@ -91,6 +97,12 @@ int floppy_write_sector(uint16_t lba, const void *buff)
 
 	if (!media_enabled) {
 		floppy_access(1);
+	}
+
+	int eject = floppy_cmd_eject_status();
+	if (eject != FLOPPY_CMD_NO_CHANGE) {
+		/* It was ejected we might just damage the data on a new disk */
+		return eject;
 	}
 
 	for (uint8_t hard = 3; hard != 0; --hard) {

@@ -417,10 +417,9 @@ void floppy_cmd_enable(int8_t enable)
 	}
 }
 
-/* FIXME DSKCHG not clearing, persistent error */
 int floppy_cmd_eject_status(void)
 {
-	if (DIR & (1 << 7)) {
+	if (!(DIR & (1 << 7))) {
 		/* Media was ejected, clear the flag and
 		 * return information. */
 
