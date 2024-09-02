@@ -161,31 +161,29 @@ static int fat12_file_seek(struct fat12_fs *fs, struct fat12_file *file, uint32_
 	uint16_t last = file->recent_offs / (uint32_t)FAT12_SECTOR_SIZE;
 	uint16_t new = offs / (uint32_t)FAT12_SECTOR_SIZE;
 
-	if (new != last) {
-		if (new < last) {
-			/* Have to start all over again*/
-			last = 0;
-			file->recent_cluster = file->dentry.cluster;
+	if (new < last) {
+		/* Have to start all over again*/
+		last = 0;
+		file->recent_cluster = file->dentry.cluster;
+	}
+
+	while (new > last) {
+		uint16_t c;
+		if (fat12_fat_get(fs, file->recent_cluster, &c) < 0) {
+			return -1;
 		}
 
-		while (new > last) {
-			uint16_t c;
-			if (fat12_fat_get(fs, file->recent_cluster, &c) < 0) {
-				return -1;
-			}
-
-			if ((c == CLUSTER_FREE) || (c == CLUSTER_RESERVED)) {
-				return -1;
-			}
-
-			if (c == CLUSTER_END) {
-				return 1; /* EOF */
-			}
-
-			file->recent_cluster = c;
-
-			++last;
+		if ((c == CLUSTER_FREE) || (c == CLUSTER_RESERVED)) {
+			return -1;
 		}
+
+		if (c == CLUSTER_END) {
+			return 1; /* EOF */
+		}
+
+		file->recent_cluster = c;
+
+		++last;
 	}
 
 	file->recent_offs = offs;
@@ -399,7 +397,28 @@ int fat12_file_truncate(struct fat12_fs *fs, struct fat12_file *file, uint32_t n
 		return 0;
 	}
 
-	if (file->dentry.size < nsize) {
+	if ((file->dentry.size / (uint32_t)FAT12_SECTOR_SIZE) == (nsize / (uint32_t)FAT12_SECTOR_SIZE)) {
+		/* No need to add/remove clusters, just init the space */
+		if (file->dentry.size < nsize) {
+			if (fat12_file_seek(fs, file, file->dentry.size - 1) < 0) {
+				return -1;
+			}
+
+			if (fat12_read_sector(fs, CLUSTER2SECTOR(file->recent_cluster)) < 0) {
+				return -1;
+			}
+
+			uint16_t chunk = nsize - file->dentry.size;
+			uint16_t offs = file->dentry.size % FAT12_SECTOR_SIZE;
+
+			memset(fs->sbuff + offs, 0, chunk);
+
+			if (fat12_write_sector(fs, CLUSTER2SECTOR(file->recent_cluster)) < 0) {
+				return -1;
+			}
+		}
+	}
+	else if (file->dentry.size < nsize) {
 		if (fat12_file_seek(fs, file, file->dentry.size - 1) < 0) {
 			return -1;
 		}
