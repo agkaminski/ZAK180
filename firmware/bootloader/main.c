@@ -77,10 +77,10 @@ int main(void)
 
 	printf("file cluster: %u, size: %llu\r\n", file.dentry.cluster, file.dentry.size);
 
-	ret = fat12_file_truncate(&fs, &file, 16 * 1024);
-	printf("truncate ret: %d\r\n", ret);
-
-	printf("file cluster: %u, size: %llu\r\n", file.dentry.cluster, file.dentry.size);
+	for (uint8_t i = 0; i < 100; ++i) {
+		ret = fat12_file_write(&fs, &file, "Ala ma kota. ", 13, (uint16_t)i * 13);
+		printf("write @%u ret: %d\r\n", (uint16_t)i * 13, ret);
+	}
 
 	floppy_access(0);
 

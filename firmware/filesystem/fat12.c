@@ -161,31 +161,34 @@ static int fat12_file_seek(struct fat12_fs *fs, struct fat12_file *file, uint32_
 	uint16_t last = file->recent_offs / (uint32_t)FAT12_SECTOR_SIZE;
 	uint16_t new = offs / (uint32_t)FAT12_SECTOR_SIZE;
 
-	if (new < last) {
-		/* Have to start all over again*/
-		last = 0;
-		file->recent_cluster = file->dentry.cluster;
+	if (new != last) {
+		if (new < last) {
+			/* Have to start all over again*/
+			last = 0;
+			file->recent_cluster = file->dentry.cluster;
+		}
+
+		while (new > last) {
+			uint16_t c;
+			if (fat12_fat_get(fs, file->recent_cluster, &c) < 0) {
+				return -1;
+			}
+
+			if ((c == CLUSTER_FREE) || (c == CLUSTER_RESERVED)) {
+				return -1;
+			}
+
+			if (c == CLUSTER_END) {
+				return 1; /* EOF */
+			}
+
+			file->recent_cluster = c;
+
+			++last;
+		}
 	}
 
-	while (new > last) {
-		uint16_t c;
-		if (fat12_fat_get(fs, file->recent_cluster, &c) < 0) {
-			return -1;
-		}
-
-		if ((c == CLUSTER_FREE) || (c == CLUSTER_RESERVED)) {
-			return -1;
-		}
-
-		if (c == CLUSTER_END) {
-			return 1; /* EOF */
-		}
-
-		file->recent_cluster = c;
-		file->recent_offs = (uint32_t)last * (uint32_t)FAT12_SECTOR_SIZE;
-
-		++last;
-	}
+	file->recent_offs = offs;
 
 	return 0;
 }
@@ -483,6 +486,77 @@ int fat12_file_truncate(struct fat12_fs *fs, struct fat12_file *file, uint32_t n
 	file->dentry.size = nsize;
 
 	return fat12_file_update(fs, file);
+}
+
+int fat12_file_write(struct fat12_fs *fs, struct fat12_file *file, const void *buff, size_t bufflen, uint32_t offs)
+{
+	size_t len = bufflen;
+
+	if (file->dentry.size < offs + (uint32_t)bufflen) {
+		if (fat12_file_truncate(fs, file, offs + (uint32_t)bufflen) < 0) {
+			return -1;
+		}
+	}
+
+	if (fat12_file_seek(fs, file, offs) < 0) {
+		return -1;
+	}
+
+	uint16_t missalign = offs % (uint32_t)FAT12_SECTOR_SIZE;
+	if (missalign) {
+		if (fat12_read_sector(fs, CLUSTER2SECTOR(file->recent_cluster)) < 0) {
+			return -1;
+		}
+
+		size_t chunk = FAT12_SECTOR_SIZE - missalign;
+		if (chunk > len) {
+			chunk = len;
+		}
+
+		memcpy(fs->sbuff + missalign, buff, chunk);
+
+		if (fat12_write_sector(fs, CLUSTER2SECTOR(file->recent_cluster)) < 0) {
+			return -1;
+		}
+
+		offs += chunk;
+		len -= chunk;
+		buff = (char *)buff + chunk;
+
+		if (fat12_file_seek(fs, file, offs) < 0) {
+			return -1;
+		}
+	}
+
+	while (len >= FAT12_SECTOR_SIZE) {
+		memcpy(fs->sbuff, buff, FAT12_SECTOR_SIZE);
+
+		if (fat12_write_sector(fs, CLUSTER2SECTOR(file->recent_cluster)) < 0) {
+			return -1;
+		}
+
+		offs += FAT12_SECTOR_SIZE;
+		len -= FAT12_SECTOR_SIZE;
+		buff = (char *)buff + FAT12_SECTOR_SIZE;
+
+		if (fat12_file_seek(fs, file, offs) < 0) {
+			return -1;
+		}
+	}
+
+	if (len) {
+		if (fat12_read_sector(fs, CLUSTER2SECTOR(file->recent_cluster)) < 0) {
+			return -1;
+		}
+
+		memcpy(fs->sbuff, buff, len);
+
+		if (fat12_write_sector(fs, CLUSTER2SECTOR(file->recent_cluster)) < 0) {
+			return -1;
+		}
+	}
+
+	return bufflen;
 }
 
 int fat12_mount(struct fat12_fs *fs, const struct fat12_cb *callback)

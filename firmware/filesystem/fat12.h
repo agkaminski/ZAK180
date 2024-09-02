@@ -63,6 +63,8 @@ int fat12_file_truncate(struct fat12_fs *fs, struct fat12_file *file, uint32_t n
 
 int fat12_file_read(struct fat12_fs *fs, struct fat12_file *file, void *buff, size_t bufflen, uint32_t offs);
 
+int fat12_file_write(struct fat12_fs *fs, struct fat12_file *file, const void *buff, size_t bufflen, uint32_t offs);
+
 int fat12_mount(struct fat12_fs *fs, const struct fat12_cb *callback);
 
 #endif
