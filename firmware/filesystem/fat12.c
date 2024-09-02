@@ -158,18 +158,18 @@ static int fat12_fat_set(struct fat12_fs *fs,  uint16_t n, uint16_t cluster)
 /* Find a cluster associated with the offset */
 static int fat12_file_seek(struct fat12_fs *fs, struct fat12_file *file, uint32_t offs)
 {
-	uint16_t last = file->last_offs / (uint32_t)FAT12_SECTOR_SIZE;
+	uint16_t last = file->recent_offs / (uint32_t)FAT12_SECTOR_SIZE;
 	uint16_t new = offs / (uint32_t)FAT12_SECTOR_SIZE;
 
 	if (new < last) {
 		/* Have to start all over again*/
 		last = 0;
-		file->last_cluster = file->dentry.cluster;
+		file->recent_cluster = file->dentry.cluster;
 	}
 
 	while (new > last) {
 		uint16_t c;
-		if (fat12_fat_get(fs, file->last_cluster, &c) < 0) {
+		if (fat12_fat_get(fs, file->recent_cluster, &c) < 0) {
 			return -1;
 		}
 
@@ -181,8 +181,8 @@ static int fat12_file_seek(struct fat12_fs *fs, struct fat12_file *file, uint32_
 			return 1; /* EOF */
 		}
 
-		file->last_cluster = c;
-		file->last_offs = (uint32_t)last * (uint32_t)FAT12_SECTOR_SIZE;
+		file->recent_cluster = c;
+		file->recent_offs = (uint32_t)last * (uint32_t)FAT12_SECTOR_SIZE;
 
 		++last;
 	}
@@ -223,7 +223,7 @@ int fat12_file_read(struct fat12_fs *fs, struct fat12_file *file, void *buff, si
 				break;
 			}
 
-			sector = CLUSTER2SECTOR(file->last_cluster);
+			sector = CLUSTER2SECTOR(file->recent_cluster);
 		}
 
 		if (fat12_read_sector(fs, sector) < 0) {
@@ -267,8 +267,6 @@ static int fat12_file_name_cmp(const struct fat12_dentry *entry, const char *pat
 	char c;
 
 	uint8_t len = fat12_file_namelen(entry->fname, sizeof(entry->fname));
-
-	printf("fname: %8s.%3s, looking for: %s\r\n", entry->fname, entry->extension, path);
 
 	for (i = 0; i < len; ++i) {
 		c = toupper(path[i]);
@@ -357,14 +355,117 @@ int fat12_file_open(struct fat12_fs *fs, struct fat12_file *file, const char *pa
 		}
 
 		memcpy(&f.dentry, &entry, sizeof(entry));
-		f.last_cluster = entry.cluster;
-		f.last_offs = 0;
+		f.recent_cluster = entry.cluster;
+		f.recent_offs = 0;
 		fp = &f;
 	}
 
 	memcpy(&file->dentry, &entry, sizeof(entry));
-	file->last_cluster = file->dentry.cluster;
-	file->last_offs = 0;
+	file->recent_cluster = file->dentry.cluster;
+	file->recent_offs = 0;
+
+	/* Last seek params of the directory is the position of found entry */
+	file->dentry_cluster = f.recent_cluster;
+	file->dentry_offs = f.recent_offs % FAT12_SECTOR_SIZE;
+
+	return 0;
+}
+
+int fat12_file_truncate(struct fat12_fs *fs, struct fat12_file *file, uint32_t nsize)
+{
+	uint32_t old_size = file->dentry.size;
+
+	if (file->dentry.size < nsize) {
+		if (fat12_file_seek(fs, file, file->dentry.size - 1) < 0) {
+			return -1;
+		}
+
+		uint16_t start = file->recent_cluster;
+
+		/* Try to find new cluster after the current last */
+		while (file->dentry.size < nsize) {
+			uint16_t ncluster, ccluster = file->recent_cluster + 1;
+			uint8_t retry = 0;
+
+			for (ccluster = file->recent_cluster + 1; ; ++ccluster) {
+				if (fat12_fat_get(fs, ccluster, &ncluster) < 0) {
+					if (retry) {
+						/* No space? Restore previous file and FAT state */
+						(void)fat12_file_truncate(fs, file, old_size);
+						return -1; /* FIXME ENOSPC */
+					}
+					else {
+						/* Try again from the FAT start */
+						retry = 1;
+						ccluster = 0;
+					}
+				}
+
+				if (ncluster == CLUSTER_FREE) {
+					break;
+				}
+			}
+
+			/* Add a new cluster to the chain */
+			if (fat12_fat_set(fs, start, ccluster) < 0) {
+				(void)fat12_file_truncate(fs, file, old_size);
+				return -1; /* FIXME EIO */
+			}
+
+			if (fat12_fat_set(fs, ccluster, CLUSTER_END) < 0) {
+				(void)fat12_file_truncate(fs, file, old_size);
+				return -1; /* FIXME EIO */
+			}
+
+			/* Zero-out new cluster */
+			memset(fs->sbuff, 0, sizeof(fs->sbuff));
+			if (fat12_write_sector(fs, CLUSTER2SECTOR(ccluster)) < 0) {
+				(void)fat12_file_truncate(fs, file, old_size);
+				return -1; /* FIXME EIO */
+			}
+
+			file->dentry.size += FAT12_SECTOR_SIZE;
+		}
+	}
+	else {
+		uint16_t ccluster = file->dentry.cluster;
+		uint16_t prev = ccluster;
+		for (uint32_t csize = 0; csize < nsize; csize += FAT12_SECTOR_SIZE) {
+			prev = ccluster;
+			if (fat12_fat_get(fs, prev, &ccluster) < 0) {
+				return -1; /* FIXME EIO */
+			}
+		}
+
+		if (ccluster != CLUSTER_END) {
+			/* ccluster have the rest of the chain, prev is new end */
+			fat12_fat_set(fs, prev, CLUSTER_END);
+
+			while (ccluster != CLUSTER_END) {
+				prev = ccluster;
+				if (fat12_fat_get(fs, prev, &ccluster) < 0) {
+					/* We have leaked clusters and can't do anything about it */
+					return -1; /* FIXME EIO */
+				}
+				if (fat12_fat_set(fs, prev, CLUSTER_FREE) < 0) {
+					return -1; /* FIXME EIO */
+				}
+			}
+		}
+	}
+
+	file->dentry.size = nsize;
+
+	if (fat12_read_sector(fs, CLUSTER2SECTOR(file->dentry_cluster)) < 0) {
+		return -1; /* FIXME EIO */
+	}
+
+	memcpy(fs->sbuff + file->dentry_offs, &file->dentry, sizeof(file->dentry));
+
+	if (fat12_write_sector(fs, CLUSTER2SECTOR(file->dentry_cluster)) < 0) {
+		return -1; /* FIXME EIO */
+	}
+
 	return 0;
 }
 

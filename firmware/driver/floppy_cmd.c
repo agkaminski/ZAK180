@@ -419,7 +419,7 @@ void floppy_cmd_enable(int8_t enable)
 
 int floppy_cmd_eject_status(void)
 {
-	if (!(DIR & (1 << 7))) {
+	if ((DIR & (1 << 7))) {
 		/* Media was ejected, clear the flag and
 		 * return information. */
 
@@ -487,6 +487,7 @@ int floppy_cmd_reset(int warm)
 		floppy_cmd_enable(0);
 		return -1;
 	}
+	(void)floppy_cmd_eject_status();
 	floppy_cmd_enable(0);
 
 	return 0;

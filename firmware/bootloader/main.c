@@ -60,6 +60,18 @@ int main(void)
 		dump(buff, sizeof(buff));
 	}
 
+	ret = fat12_file_open(&fs, &file, "/TEST2.EXT");
+	printf("open ret %d\r\n", ret);
+
+	printf("file cluster: %u, size: %llu\r\n", file.dentry.cluster, file.dentry.size);
+
+	if (ret == 0) {
+		uint8_t buff[64];
+		ret = fat12_file_read(&fs, &file, buff, sizeof(buff), 0);
+		printf("read ret %d\r\n", ret);
+		dump(buff, sizeof(buff));
+	}
+
 	floppy_access(0);
 
 	return 0;

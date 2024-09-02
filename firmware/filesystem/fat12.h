@@ -51,8 +51,10 @@ struct fat12_dentry {
 
 struct fat12_file {
 	struct fat12_dentry dentry;
-	uint16_t last_cluster;
-	uint32_t last_offs;
+	uint16_t recent_cluster;
+	uint32_t recent_offs;
+	uint16_t dentry_cluster;
+	uint16_t dentry_offs;
 };
 
 int fat12_file_open(struct fat12_fs *fs, struct fat12_file *file, const char *path);
