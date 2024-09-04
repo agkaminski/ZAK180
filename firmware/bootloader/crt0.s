@@ -4,22 +4,25 @@
 ; See LICENSE.md
 
 .module ctr0
+
 .globl _main
+.globl _vga_vblank_handler
+
 .z180
 
-CBR =    0x0038 ; common 1 base register
-BBR =    0x0039 ; bank base register
-CBAR =   0x003A ; logical memory layout, bank on low nibble
+CBR =    0x0038   ; common 1 base register
+BBR =    0x0039   ; bank base register
+CBAR =   0x003A   ; logical memory layout, bank on low nibble
 
-DCNTL =  0x0032 ; DMA/WAIT control register
-RCR =    0x0036 ; refresh control register
+DCNTL =  0x0032   ; DMA/WAIT control register
+RCR =    0x0036   ; refresh control register
 
-ROMDIS = 0x0060 ; ROM disable/enable control register
+ROMDIS = 0x0060   ; ROM disable/enable control register
+INT2_ACK = 0x0040 ; VBLANK INT2 acknownlage
 
-; This code has to be position independent!
-; We'll be jumping a lot around the place
-;
-; No interrupts in the bootloader, ignore vectors
+ITC = 0x0034      ; INT/TRAP Control Register
+
+; Start code has to be position independent!
 ;
 ; We're starting with default Z80 compatible
 ; memory layout (all in common 0):
@@ -36,6 +39,9 @@ ROMDIS = 0x0060 ; ROM disable/enable control register
 ; 32 KB, 0x4000 -> 0xBFFF (0xE4000 -> 0xEBFFF)
 ; Common 1: memory access window
 ; 16 KB, 0xC000 -> 0xFFFF (mapped as needed)
+
+.area _HEADER (ABS)
+.org 0x4000
 
 reset:
 			; Disable wait-states, memory and I/O are fast enough
@@ -78,7 +84,7 @@ high_ram:
 
 			; Disable ROM /CS line, allow to use low RAM.
 			ld a, #0xFF
-			out0 (ROMDIS), a
+			out0 (#ROMDIS), a
 
 			; Setup stack
 			ld sp, #0xC000
@@ -87,13 +93,73 @@ high_ram:
 			call bss_init
 			call data_init
 
+			; Setup IVT
+			ld a, #0x41 ; 0x4100 >> 8
+			ld i, a
+
+			; Enable INT2 (VBLANK) only
+			ld a, #0x04
+			out0 (#ITC), a
+
 			; That's enough to jump to C, we can finish
 			; init there
 
+			ei
 			call _main
 
 			; We shouldn't get here
 			halt
+
+.org 0x4100
+ivt:
+.word _irq_bad    ; INT1, floppy IRQ not supported
+.word _irq_vblank ; INT2, VBLANK
+.word _irq_bad    ; PRT CH0, not supported
+.word _irq_bad    ; PRT CH1, not supported
+.word _irq_bad    ; DMA CH0, not supported
+.word _irq_bad    ; DMA CH1, not supported
+.word _irq_bad    ; CSI/O, not supported
+.word _irq_uart0  ; ASCI 0
+.word _irq_uart1  ; ASCI 1
+
+.macro SAVE
+			ex af, af'
+			exx
+			push ix
+			push iy
+.endm
+
+.macro RESTORE
+			pop iy
+			pop ix
+			exx
+			ex af, af'
+.endm
+
+_irq_bad:
+			halt
+
+_irq_vblank:
+			SAVE
+			out0 (INT2_ACK), a
+			call _vga_vblank_handler
+			RESTORE
+			ei
+			reti
+
+_irq_uart0:
+			SAVE
+			; TODO
+			RESTORE
+			ei
+			reti
+
+_irq_uart1:
+			SAVE
+			; TODO
+			RESTORE
+			ei
+			reti
 
 .area _HOME
 .area _CODE

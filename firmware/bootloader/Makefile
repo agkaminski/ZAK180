@@ -1,15 +1,15 @@
 TARGET = bootloader
 
 CPU = z180
-CODE = 0x4000
+CODE = 0x4200
 DATA = 0x8000
 GHASH = "$(shell git describe --always --dirty)"
-CFLAGS = -m${CPU} -DVERSION='${GHASH}' -DCODE_LOC=${CODE} -L../driver -L../filesystem -I. -I../driver
+CFLAGS = -m${CPU} -DVERSION='${GHASH}' -L../driver -L../filesystem -I. -I../driver
 LDFLAGS = --code-loc ${CODE} --data-loc ${DATA} --no-std-crt0
 
 SRC = main.c
 OBJ = crt0.rel $(SRC:.c=.rel)
-DRIVERS = uart.lib floppy.lib
+DRIVERS = uart.lib floppy.lib ay38912.lib mmu.lib vga.lib
 FILESYSTEMS = fat12.lib
 LIB = ${DRIVERS} ${FILESYSTEMS}
 

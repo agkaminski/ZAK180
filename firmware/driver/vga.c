@@ -23,6 +23,11 @@ static char g_cursor_prev;
 
 volatile unsigned char g_vsync;
 
+void vga_vblank_handler(void)
+{
+	/* TODO */
+}
+
 void vga_vsync(void)
 {
 	g_vsync = 1;
@@ -129,5 +134,5 @@ void vga_init(void)
 	/* Select ROM #0 and zero scroll */
 	ay38912_writePort(0);
 
-	vga_clear();
+	//vga_clear();
 }

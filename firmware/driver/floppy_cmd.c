@@ -25,6 +25,9 @@ __sfr __at(0xE5) FIFO; /* Data Register (FIFO)*/
 __sfr __at(0xE7) DIR;  /* Digital Input Register (RO) */
 __sfr __at(0xE7) CCR;  /* Configuration Control Register (WO) */
 
+#define _CRITICAL_START __asm di __endasm
+#define _CRITICAL_END   __asm ei __endasm
+
 #define DOR_SELECT_NONE 0x0C
 #define DOR_SELECT_0    0x1C
 #define DOR_SELECT_1    0x2D
@@ -180,18 +183,27 @@ __asm
 __endasm;
 }
 
-/* TODO this has to be critical */
 int floppy_cmd_read_data(uint8_t c, uint8_t h, uint8_t r, uint8_t *buff, struct floppy_cmd_result *res)
 {
-	uint8_t cmd[] = { 0x46, ((h << 2) | DRIVE_NO), c, h, r, 2, r, GAP, 0xFF };
+	uint8_t cmd[] = { 0x46, ((h << 2) | DRIVE_NO), c, h, r, 2, r, GAP };
 
 	if (floppy_cmd_write_cmd(cmd, sizeof(cmd)) < 0) {
+		return -1;
+	}
+
+	_CRITICAL_START;
+
+	/* Write last cmd byte in critical section, so we start safely */
+	if (floppy_cmd_fifo_write(0x08) < 0) {
+		_CRITICAL_END;
 		return -1;
 	}
 
 	/* Slightly optimised, we are barely able to keep up the pace
 	 * No error checking here, but it's ok, we'll fail on read_result */
 	floppy_cmd_sector_read(buff);
+
+	_CRITICAL_END;
 
 	/* We lied that the sector is at end of the track, we'll get the result right away */
 	/* On success ST0 = 0x41, ST1 = 0x80 (EOT) */
@@ -262,15 +274,25 @@ __endasm;
 
 int floppy_cmd_write_data(uint8_t c, uint8_t h, uint8_t r, const uint8_t *buff, struct floppy_cmd_result *res)
 {
-	uint8_t cmd[] = { 0x45, ((h << 2) | DRIVE_NO) | 0x80, c, h, r, 2, r, GAP, 0xFF };
+	uint8_t cmd[] = { 0x45, ((h << 2) | DRIVE_NO) | 0x80, c, h, r, 2, r, GAP };
 
 	if (floppy_cmd_write_cmd(cmd, sizeof(cmd)) < 0) {
+		return -1;
+	}
+
+	_CRITICAL_START;
+
+	/* Write last cmd byte in critical section, so we start safely */
+	if (floppy_cmd_fifo_write(0x08) < 0) {
+		_CRITICAL_END;
 		return -1;
 	}
 
 	/* Slightly optimised, we are barely able to keep up the pace
 	 * No error checking here, but it's ok, we'll fail on read_result */
 	floppy_cmd_sector_write(buff);
+
+	_CRITICAL_END;
 
 	return floppy_cmd_read_result(res);
 }
