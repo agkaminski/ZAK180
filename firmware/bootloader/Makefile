@@ -1,8 +1,8 @@
 TARGET = bootloader
 
 CPU = z180
-CODE = 0x4200
-DATA = 0x8000
+CODE = 0x8200
+DATA = 0xC000
 GHASH = "$(shell git describe --always --dirty)"
 CFLAGS = -m${CPU} -DVERSION='${GHASH}' -L../driver -L../filesystem -I. -I../driver
 LDFLAGS = --code-loc ${CODE} --data-loc ${DATA} --no-std-crt0

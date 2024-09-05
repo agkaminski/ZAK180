@@ -34,14 +34,14 @@ ITC = 0x0034      ; INT/TRAP Control Register
 ;
 ; Desired memory layout (logical):
 ; Common 0: not used, leave as kernel entry point
-; 16 KB, 0x0000 -> 0x3FFF (0x00000 -> 0x03FFF)
-; Bank:     Bootloader code and data (high RAM)
-; 32 KB, 0x4000 -> 0xBFFF (0xE4000 -> 0xEBFFF)
-; Common 1: memory access window
-; 16 KB, 0xC000 -> 0xFFFF (mapped as needed)
+; 24 KB, 0x0000 -> 0x5FFF (0x00000 -> 0x05FFF)
+; Bank: memory access window
+; 8 KB, 0x6000 -> 0x8000 (mapped as needed)
+; Common 1: Bootloader code and data (high RAM)
+; 32 KB, 0x8000 -> 0xFFFF (0xE8000 -> 0xEFFFF)
 
 .area _HEADER (ABS)
-.org 0x4000
+.org 0x8000
 
 reset:
 			; Disable wait-states, memory and I/O are fast enough
@@ -52,15 +52,15 @@ reset:
 			out0 (#RCR), a
 
 			; Setup logical layout
-			ld a, #0xC4
+			ld a, #0x86
 			out0 (#CBAR), a
 
-			; Select high RAM for bank
-			ld a, #0xE0
+			; Select VGA for bank
+			ld a, #0xFE - 0x06
 			out0 (#BBR), a
 
-			; Select ROM for common1
-			ld a, #0x00
+			; Select high RAM for common1
+			ld a, #0xE0
 			out0 (#CBR), a
 
 			; Now we have access to the desired bootloader
@@ -68,7 +68,7 @@ reset:
 			; common1. We need to copy ROM to the high RAM
 			; and disable ROM /CS.
 
-			ld de, #0x4000    ; Destination
+			ld de, #0x8000    ; Destination
 			ld hl, #0x0000    ; Source
 			ld bc, #16 * 1024 ; Count, ROM size
 			ldir              ; Copy memory
@@ -87,14 +87,14 @@ high_ram:
 			out0 (#ROMDIS), a
 
 			; Setup stack
-			ld sp, #0xC000
+			ld sp, #0x0000
 
 			; Init .bss and .data
 			call bss_init
 			call data_init
 
 			; Setup IVT
-			ld a, #0x41 ; 0x4100 >> 8
+			ld a, #0x81 ; 0x8100 >> 8
 			ld i, a
 
 			; Enable INT2 (VBLANK) only
@@ -110,7 +110,7 @@ high_ram:
 			; We shouldn't get here
 			halt
 
-.org 0x4100
+.org 0x8100
 ivt:
 .word _irq_bad    ; INT1, floppy IRQ not supported
 .word _irq_vblank ; INT2, VBLANK
