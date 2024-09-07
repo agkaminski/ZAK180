@@ -7,9 +7,19 @@
 #include <z180/z180.h>
 
 #include "mmu.h"
+#include "critical.h"
 
-void *mmu_mapScratch(uint8_t page)
+void *mmu_map_scratch(uint8_t page, uint8_t *old)
 {
-	BBR = page;
-	return (void *)(((uint16_t)(CBR & 0x0F)) << 12);
+	_CRITICAL_START;
+	uint8_t base = (CBR & 0x0F);
+
+	if (old != NULL) {
+		*old = BBR + base;
+	}
+
+	BBR = page - base;
+	_CRITICAL_END;
+
+	return (void *)((uint16_t)base << 12);
 }

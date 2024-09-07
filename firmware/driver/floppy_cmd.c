@@ -15,6 +15,7 @@
 #include <z180/z180.h>
 
 #include "floppy_cmd.h"
+#include "critical.h"
 
 /* 82077 on ZAK180 is in AT mode */
 
@@ -24,9 +25,6 @@ __sfr __at(0xE4) MSR;  /* Main Status Register (RO) */
 __sfr __at(0xE5) FIFO; /* Data Register (FIFO)*/
 __sfr __at(0xE7) DIR;  /* Digital Input Register (RO) */
 __sfr __at(0xE7) CCR;  /* Configuration Control Register (WO) */
-
-#define _CRITICAL_START __asm di __endasm
-#define _CRITICAL_END   __asm ei __endasm
 
 #define DOR_SELECT_NONE 0x0C
 #define DOR_SELECT_0    0x1C

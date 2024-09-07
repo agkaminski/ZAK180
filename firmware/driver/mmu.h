@@ -23,6 +23,6 @@
 
 /* Map selected page to the bank area,
  * return scratch address */
-void *mmu_mapScratch(uint8_t page);
+void *mmu_map_scratch(uint8_t page, uint8_t *old);
 
 #endif

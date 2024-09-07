@@ -9,15 +9,11 @@
 
 #include <stdint.h>
 
-void vga_putc(char c);
-
-void vga_puts(const char *str);
+void vga_putchar(char c);
 
 void vga_clear(void);
 
-void vga_handleCursor(void);
-
-void vga_selectRom(uint8_t rom);
+void vga_select_rom(uint8_t rom);
 
 void vga_init(void);
 
