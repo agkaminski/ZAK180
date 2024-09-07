@@ -8,6 +8,7 @@
 #include <stdio.h>
 
 #include "../driver/uart.h"
+#include "../driver/vga.h"
 #include "../driver/floppy.h"
 #include "../filesystem/fat12.h"
 
@@ -16,6 +17,7 @@ int putchar(int c)
 	char t = c;
 
 	uart1_write_poll(&t, 1);
+	vga_putchar(t);
 
 	return 1;
 }
@@ -40,8 +42,15 @@ static void dump(const uint8_t *buff, size_t bufflen)
 int main(void)
 {
 	uart_init();
+	vga_init();
 
 	printf("ZAK180 Bootloader rev " VERSION "\r\n");
+
+	while (1) {
+		for (volatile uint16_t i = 1; i != 0; ++i);
+		for (volatile uint16_t i = 1; i != 0; ++i);
+		printf("Test test test test\r\n");
+	}
 
 	floppy_init();
 	fat12_mount(&fs, &cb);

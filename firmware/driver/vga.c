@@ -45,7 +45,7 @@ static struct {
 
 static void vga_enqueue(char c)
 {
-	while (((common.wptr + 1) % sizeof(common.fifo) == common.rptr) {
+	while (((common.wptr + 1) % sizeof(common.fifo)) == common.rptr) {
 		/* TODO reschedule */
 		__asm halt __endasm;
 	}
@@ -97,7 +97,7 @@ void vga_vblank_handler(void)
 	unsigned char nl = 0;
 
 	if (c != 0) {
-		common.vram = mmu_map_scratch(VGA_PAGE, &common.mmu_save);
+		common.vram = _mmu_map_scratch(VGA_PAGE, &common.mmu_save);
 
 		if (common.cursor.state) {
 			vga_set(common.cursor.prev);
@@ -132,12 +132,14 @@ void vga_vblank_handler(void)
 			c = vga_dequeue();
 		} while (c != 0);
 
-		mmu_map_scratch(common.mmu_save, NULL);
+		_mmu_map_scratch(common.mmu_save, NULL);
 	}
 	else {
 		/* Handle cursor, toggle once*/
-		if (++common.cursor.counter >= 20) {
+		if (++common.cursor.counter >= 26) {
 			common.cursor.counter = 0;
+
+			common.vram = _mmu_map_scratch(VGA_PAGE, &common.mmu_save);
 
 			if (common.cursor.state) {
 				vga_set(common.cursor.prev);
@@ -148,6 +150,8 @@ void vga_vblank_handler(void)
 				common.cursor.prev = vga_get();
 				vga_set(CURSOR);
 			}
+
+			_mmu_map_scratch(common.mmu_save, NULL);
 		}
 	}
 }
