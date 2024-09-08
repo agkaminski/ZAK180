@@ -11147,7 +11147,7 @@
 				)
 			)
 		)
-		(property "Value" "Z8-L180-S180-180-PLCC-68"
+		(property "Value" "Z180"
 			(at 101.854 38.862 0)
 			(effects
 				(font

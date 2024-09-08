@@ -4,3 +4,6 @@
   swap pin 1 with 3
 - ROM disable circuit can be simplified, U27A can be removed
   and ROM disable signal can be routed to U20 pin 3 instead
+- Wierd kicad schematic glitch - A0 to the sound subsystem is
+  actually connected to D0 instead. Isolate U11 pin 6 and route
+  A0 signal from the CPU instead to fix the issue.
