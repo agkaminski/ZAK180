@@ -17,14 +17,6 @@
 
 #define CURSOR   219
 
-static unsigned char g_scroll;
-static unsigned char g_cursor_x;
-static unsigned char g_cursor_y;
-static unsigned char g_cursor_state;
-static char g_cursor_prev;
-
-volatile unsigned char g_vsync;
-
 static struct {
 	char fifo[8];
 	volatile uint8_t wptr;
