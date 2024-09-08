@@ -37,11 +37,18 @@ static void vga_mark_dirty(uint8_t line)
 	common.vdirty[line >> 3] |= (1 << (line & 0x7));
 }
 
-static void vga_set(char c)
+static void _vga_set(char c)
 {
 	uint8_t y = (common.cursor.y + common.scroll) & 0x3F;
 	common.vbuffer[y][common.cursor.x] = c;
 	vga_mark_dirty(y);
+}
+
+static void vga_set(char c)
+{
+	_CRITICAL_START;
+	_vga_set(c);
+	_CRITICAL_END;
 }
 
 static char vga_get(void)
@@ -86,12 +93,12 @@ void vga_vblank_handler(void)
 		common.cursor.counter = 0;
 
 		if (common.cursor.state) {
-			vga_set(common.cursor.prev);
+			_vga_set(common.cursor.prev);
 			common.cursor.state = 0;
 		}
 		else {
 			common.cursor.prev = vga_get();
-			vga_set(CURSOR);
+			_vga_set(CURSOR);
 			common.cursor.state = 1;
 		}
 	}
