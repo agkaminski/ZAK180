@@ -46,14 +46,15 @@ static struct {
 	uint8_t vbuffer[64][80];
 	uint8_t vdirty[64 / 8];
 	struct {
-		unsigned char x;
-		unsigned char y;
-		unsigned char state;
-		unsigned char prev;
-		unsigned char counter;
+		uint8_t x;
+		uint8_t y;
+		uint8_t state;
+		uint8_t prev;
+		uint8_t counter;
+		uint8_t enable;
 	} cursor;
-	unsigned char rom;
-	unsigned char scroll;
+	uint8_t rom;
+	uint8_t scroll;
 } common;
 
 static void vga_mark_dirty(uint8_t line)
@@ -120,7 +121,7 @@ void vga_vblank_handler(void)
 			_vga_set(common.cursor.prev);
 			common.cursor.state = 0;
 		}
-		else {
+		else if (common.cursor.enable) {
 			common.cursor.prev = vga_get();
 			_vga_set(CURSOR);
 			common.cursor.state = 1;
@@ -206,6 +207,11 @@ void vga_select_rom(uint8_t rom)
 	ay38912_writePort((common.rom << 6) | (common.scroll & 0x3F));
 }
 
+void vga_set_cursor(uint8_t enable)
+{
+	common.cursor.enable = enable;
+}
+
 void vga_init(void)
 {
 	/* Set AY-3-8912 IOA as output */
@@ -213,4 +219,5 @@ void vga_init(void)
 
 	vga_select_rom(0);
 	vga_clear();
+	vga_set_cursor(1);
 }

@@ -15,6 +15,8 @@ void vga_clear(void);
 
 void vga_select_rom(uint8_t rom);
 
+void vga_set_cursor(uint8_t enable);
+
 void vga_init(void);
 
 #endif

@@ -11,8 +11,10 @@
 #include "../driver/vga.h"
 #include "../driver/floppy.h"
 #include "../filesystem/fat12.h"
-
 #include "../driver/mmu.h"
+
+#define PAGE_SIZE    (4 * 1024)
+#define SCRATCH_SIZE (8 * 1024)
 
 int putchar(int c)
 {
@@ -24,21 +26,41 @@ int putchar(int c)
 	return 1;
 }
 
-struct fat12_fs fs;
+static struct fat12_fs fs;
 static const struct fat12_cb cb = {
 	.read_sector = floppy_read_sector,
 	.write_sector = floppy_write_sector
 };
 
-static void dump(const uint8_t *buff, size_t bufflen)
+static void fatal(void)
 {
-	for (size_t i = 0; i < bufflen; i += 32) {
-		printf("%04x: ", i);
-		for (size_t j = 0; j < 32; ++j) {
-			printf("%02x ", buff[i + j]);
-		}
-		printf("\r\n");
-	}
+	floppy_access(0);
+
+	printf("Fatal error, halt\r\n");
+
+	/* Give some time for vblank to come
+	 * and refresh the screen. */
+	for (volatile uint16_t i = 0; i < 6000; ++i);
+
+	__asm
+		di
+		halt
+	__endasm;
+}
+
+static void kernel_jump(void)
+{
+	/* Give some time for vblank to come
+	 * and refresh the screen. */
+	for (volatile uint16_t i = 0; i < 6000; ++i);
+
+	__asm
+		di
+		ld sp, #0x0000
+		jp 0x0000
+	__endasm;
+
+	/* Never reached */
 }
 
 int main(void)
@@ -46,61 +68,65 @@ int main(void)
 	uart_init();
 	vga_init();
 
-	printf("ZAK180 Bootloader rev " VERSION "\r\n");
+	printf("ZAK180 Bootloader rev " VERSION " compiled on " DATE "\r\n");
 
-//	for (uint16_t addr = 0; ; addr += 0x1000) {
-//		printf("vaddr: 0x%04p -> page 0x%02x\r\n", addr, mmu_get_page(addr));
-//	}
-
-	uint16_t j = 0;
-	while (1) {
-		for (volatile uint16_t i = 1; i != 0; ++i);
-		for (volatile uint16_t i = 1; i != 0; ++i);
-		//printf("Test test test test Test test test test test test test test test test\r\n");
-		printf("%d %d\r\n", j, j);
-		++j;
+	printf("Floppy drive initialisation\r\n");
+	int ret = floppy_init();
+	if (ret < 0) {
+		printf("Could not initialise media, please insert the system disk\r\n");
+		fatal();
 	}
 
-	floppy_init();
-	fat12_mount(&fs, &cb);
+	printf("Mounting filesystem\r\n");
+	ret = fat12_mount(&fs, &cb);
+	if (ret < 0) {
+		printf("No disk or inserted disk is not bootable\r\n");
+		fatal();
+	}
 
 	struct fat12_file file;
-
-	int ret = fat12_file_open(&fs, &file, "/TEST");
-	printf("open ret %d\r\n", ret);
-
-	printf("file cluster: %u, size: %llu\r\n", file.dentry.cluster, file.dentry.size);
-
-	if (ret == 0) {
-		uint8_t buff[64];
-		ret = fat12_file_read(&fs, &file, buff, sizeof(buff), 0);
-		printf("read ret %d\r\n", ret);
-		dump(buff, sizeof(buff));
+	ret = fat12_file_open(&fs, &file, "/BOOT/KERNEL.IMG");
+	if (ret < 0) {
+		printf("Could not find the kernel image.\r\nMake sure the kernel is present in /BOOT/KERNEL.IMG\r\n");
+		fatal();
 	}
 
-	ret = fat12_file_open(&fs, &file, "/TEST2.EXT");
-	printf("open ret %d\r\n", ret);
+	printf("Loading the kernel image...\r\n");
+	uint32_t total = 0;
+	uint8_t page = 0;
+	uint8_t done = 0;
+	uint32_t offs = 0;
+	do {
+		uint8_t *dest = mmu_map_scratch(page, NULL);
+		uint16_t left = SCRATCH_SIZE;
+		uint16_t pos = 0;
+		while (left) {
+			/* FIXME SCRATCH_SIZE is not working for some reason */
+			int got = fat12_file_read(&fs, &file, dest + pos, 512, offs);
+			if (got < 0) {
+				printf("File read error %d\r\n", got);
+				fatal();
+			}
+			if (!got) {
+				done = 1;
+				break;
+			}
 
-	printf("file cluster: %u, size: %llu\r\n", file.dentry.cluster, file.dentry.size);
-
-	if (ret == 0) {
-		uint8_t buff[64];
-		ret = fat12_file_read(&fs, &file, buff, sizeof(buff), 0);
-		printf("read ret %d\r\n", ret);
-		dump(buff, sizeof(buff));
-	}
-
-	ret = fat12_file_truncate(&fs, &file, 1024);
-	printf("truncate ret: %d\r\n", ret);
-
-	printf("file cluster: %u, size: %llu\r\n", file.dentry.cluster, file.dentry.size);
-
-	for (uint8_t i = 0; i < 100; ++i) {
-		ret = fat12_file_write(&fs, &file, "Ala ma kota. ", 13, (uint16_t)i * 13);
-		printf("write @%u ret: %d\r\n", (uint16_t)i * 13, ret);
-	}
+			left -= got;
+			pos += got;
+			offs += got;
+			total += got;
+		}
+		printf("\rLoaded %llu bytes", total);
+		page += SCRATCH_SIZE / PAGE_SIZE;
+	} while (!done);
 
 	floppy_access(0);
 
+	printf("\r\nStarting the kernel...\r\n");
+
+	kernel_jump();
+
+	/* Never reached*/
 	return 0;
 }

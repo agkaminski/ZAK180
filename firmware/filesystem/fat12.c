@@ -195,17 +195,19 @@ int fat12_file_read(struct fat12_fs *fs, struct fat12_file *file, void *buff, si
 {
 	uint16_t sector;
 	size_t len = 0;
-	uint32_t fsize = (file == NULL) ? FAT12_ROOT_SIZE * FAT12_SECTOR_SIZE : file->dentry.size;
 
-	if (offs >= fsize) {
-		return 0;
-	}
-	else if (offs + (uint32_t)bufflen > fsize) {
-		bufflen = fsize - offs;
-	}
-	if (bufflen > 0x7FFF) {
-		/* Reval has to fit in int (int16_t) */
-		bufflen = 0x7FFF;
+	/* Directories seem to have zero size */
+	if ((file != NULL) && !(file->dentry.attr & FAT12_ATTR_DIR)) {
+		if (offs >= file->dentry.size) {
+			return 0;
+		}
+		else if (offs + (uint32_t)bufflen > file->dentry.size) {
+			bufflen = file->dentry.size - offs;
+		}
+		if (bufflen > 0x7FFF) {
+			/* Reval has to fit in int (int16_t) */
+			bufflen = 0x7FFF;
+		}
 	}
 
 	while (len < bufflen) {
@@ -266,7 +268,6 @@ static int fat12_file_name_cmp(const struct fat12_dentry *entry, const char *pat
 {
 	uint8_t i, pos;
 	char c;
-
 	uint8_t len = fat12_file_namelen(entry->fname, sizeof(entry->fname));
 
 	for (i = 0; i < len; ++i) {
@@ -341,14 +342,17 @@ int fat12_file_open(struct fat12_fs *fs, struct fat12_file *file, const char *pa
 			}
 		}
 
-		/* Rewind to the next file in path */
+		/* Rewind to the next file in the path */
 		while (path[pos] != '/' && path[pos] != '\0') {
 			++pos;
 		}
 
-		if (path[pos] == '\0') {
+		if ((path[pos] == '\0') || (path[pos + 1] == '\0')) {
 			break;
 		}
+
+		/* Skip / */
+		++pos;
 
 		/* If we found directory, then go to it next */
 		if (!(entry.attr & FAT12_ATTR_DIR)) {

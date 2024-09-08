@@ -1,8 +1,8 @@
-TARGET = bootloader
+TARGET = kernel
 
 CPU = z180
-CODE = 0x8200
-DATA = 0xC000
+CODE = 0x0200
+DATA = 0x8000
 GHASH = "$(shell git describe --always --dirty)"
 DATE = "$(shell date +"%X %x")"
 CFLAGS = -m${CPU} -DVERSION='${GHASH}' -DDATE='${DATE}' -L../driver -L../filesystem -I. -I../driver

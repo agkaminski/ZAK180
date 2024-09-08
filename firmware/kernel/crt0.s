@@ -1,5 +1,5 @@
 ; ZAK180 Firmaware
-; Bootloader crt0.s
+; Kernel crt0.s
 ; Copyright: Aleksander Kaminski, 2024
 ; See LICENSE.md
 
@@ -24,24 +24,24 @@ ITC = 0x0034      ; INT/TRAP Control Register
 
 ; Start code has to be position independent!
 ;
-; We're starting with default Z80 compatible
-; memory layout (all in common 0):
-; 0x0000-0x3FFF ROM
-; 0x4000-0xFFFF RAM
-;
-; We need to copy ourself to the high RAM
-; and jump into it to save space for the kernel.
+; We're starting with the bootloader layout:
+; Common 0:
+; 24 KB, 0x0000 -> 0x5FFF (0x00000 -> 0x05FFF)
+; Bank:
+; 8 KB, 0x6000 -> 0x8000 (mapped as needed)
+; Common 1:
+; 32 KB, 0x8000 -> 0xFFFF (0xE8000 -> 0xEFFFF)
 ;
 ; Desired memory layout (logical):
-; Common 0: not used, leave as kernel entry point
-; 24 KB, 0x0000 -> 0x5FFF (0x00000 -> 0x05FFF)
+; Common 0: kernel code and data
+; 56 KB, 0x0000 -> 0xDFFF (0x00000 -> 0x0DFFF)
 ; Bank: memory access window
-; 8 KB, 0x6000 -> 0x8000 (mapped as needed)
-; Common 1: Bootloader code and data (high RAM)
-; 32 KB, 0x8000 -> 0xFFFF (0xE8000 -> 0xEFFFF)
+; 4 KB, 0xE000 -> 0xEFFF (mapped as needed)
+; Common 1: Switchable stack area
+; 4 KB, 0xF000 -> 0xFFFF (0xEF000 -> 0xEFFFF)
 
 .area _HEADER (ABS)
-.org 0x8000
+.org 0x0000
 
 reset:
 			; Disable RAM wait-states
@@ -53,39 +53,12 @@ reset:
 			out0 (#RCR), a
 
 			; Setup logical layout
-			ld a, #0x86
+			ld a, #0xFE
 			out0 (#CBAR), a
 
-			; Select VGA for bank
-			ld a, #0xFE - 0x06
-			out0 (#BBR), a
-
-			; Select high RAM for common1
-			ld a, #0xE0
+			; Setup stack page
+			ld a, #0xEF - 0x0F
 			out0 (#CBR), a
-
-			; Now we have access to the desired bootloader
-			; location in bank and window to the ROM in
-			; common1. We need to copy ROM to the high RAM
-			; and disable ROM /CS.
-
-			ld de, #0x8000    ; Destination
-			ld hl, #0x0000    ; Source
-			ld bc, #16 * 1024 ; Count, ROM size
-			ldir              ; Copy memory
-
-			; Now jump into copied ROM to the high RAM
-			; We're compiled onto destination addresses,
-			; so simple absolute jump will do the trick.
-
-			jp high_ram
-high_ram:
-			; Now we're in the high RAM, we don't need
-			; PIC code anymore. Do a normal init.
-
-			; Disable ROM /CS line, allow to use low RAM.
-			ld a, #0xFF
-			out0 (#ROMDIS), a
 
 			; Setup stack
 			ld sp, #0x0000
@@ -95,7 +68,7 @@ high_ram:
 			call data_init
 
 			; Setup IVT
-			ld a, #0x81 ; 0x8100 >> 8
+			ld a, #0x01 ; 0x0100 >> 8
 			ld i, a
 
 			; Enable INT2 (VBLANK) only
@@ -112,7 +85,7 @@ high_ram:
 			di
 			halt
 
-.org 0x8100
+.org 0x0100
 ivt:
 .word _irq_bad    ; INT1, floppy IRQ not supported
 .word _irq_vblank ; INT2, VBLANK
@@ -125,10 +98,8 @@ ivt:
 .word _irq_uart1  ; ASCI 1
 
 .macro SAVE
-			push af
-			push bc
-			push de
-			push hl
+			ex af, af'
+			exx
 			push ix
 			push iy
 .endm
@@ -136,10 +107,8 @@ ivt:
 .macro RESTORE
 			pop iy
 			pop ix
-			pop hl
-			pop de
-			pop bc
-			pop af
+			exx
+			ex af, af'
 .endm
 
 _irq_bad:
