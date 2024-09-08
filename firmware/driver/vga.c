@@ -18,10 +18,8 @@
 #define CURSOR   219
 
 static struct {
-	char fifo[8];
-	volatile uint8_t wptr;
-	volatile uint8_t rptr;
-	unsigned char scroll;
+	uint8_t vbuffer[64][80];
+	uint8_t vdirty[64 / 8];
 	struct {
 		unsigned char x;
 		unsigned char y;
@@ -29,48 +27,77 @@ static struct {
 		unsigned char prev;
 		unsigned char counter;
 	} cursor;
-	unsigned char mmu_save;
-	volatile unsigned char vsync;
-	volatile char *vram;
 	unsigned char rom;
+	unsigned char scroll;
 } common;
 
-static void vga_enqueue(char c)
+static void vga_mark_dirty(uint8_t line)
 {
-	while (((common.wptr + 1) % sizeof(common.fifo)) == common.rptr) {
-		/* TODO reschedule */
-		__asm halt __endasm;
-	}
-
-	common.fifo[common.wptr] = c;
-	common.wptr = (common.wptr + 1) % sizeof(common.fifo);
-}
-
-static char vga_dequeue(void)
-{
-	char c = 0;
-
-	if (common.wptr != common.rptr) {
-		c = common.fifo[common.rptr];
-		common.rptr = (common.rptr + 1) % sizeof(common.fifo);
-	}
-
-	return c;
+	common.vdirty[line >> 3] |= (1 << (line & 0x7));
 }
 
 static void vga_set(char c)
 {
 	uint8_t y = (common.cursor.y + common.scroll) & 0x3F;
-	*(common.vram + ((uint16_t)y << 7) + common.cursor.x) = c;
+	common.vbuffer[y][common.cursor.x] = c;
+	vga_mark_dirty(y);
 }
 
 static char vga_get(void)
 {
 	uint8_t y = (common.cursor.y + common.scroll) & 0x3F;
-	return *(common.vram + ((uint16_t)y << 7) + common.cursor.x);
+	return common.vbuffer[y][common.cursor.x];
 }
 
-/* TODO scroll not working in rev A because of bad AY-3-8912 decoding */
+static void vga_sync_line(uint8_t line)
+{
+	void *bpos = common.vbuffer[line];
+	uint8_t bpage = mmu_get_page(bpos);
+	uint16_t offs = (uint16_t)bpos & 0xFFF;
+	uint16_t doffs = (uint16_t)line << 7;
+
+	/* Source */
+	SAR0L = offs & 0xFF;
+	SAR0H = ((uint16_t)offs >> 8) + (bpage << 4);
+	SAR0B = bpage >> 4;
+
+	/* Destination */
+	DAR0L = doffs & 0xFF;
+	DAR0H = ((VGA_PAGE << 4) + (doffs >> 8)) & 0xFF;
+	DAR0B = VGA_PAGE >> 4;
+
+	/* Mode - memory to memory with increment, burst mode */
+	DMODE = 0x02;
+
+	/* Length, 80 bytes */
+	BCR0L = 80;
+	BCR0H = 0;
+
+	/* Start DMA, no interrupt */
+	DSTAT = 0x60;
+}
+
+void vga_vblank_handler(void)
+{
+	uint8_t limit = 4;
+
+	for (uint8_t i = 0; (i < sizeof(common.vdirty)) && limit; ++i) {
+		if (common.vdirty[i]) {
+			uint8_t mask = 1;
+			for (uint8_t j = 0; (j < 8) && limit; ++j) {
+				if (common.vdirty[i] & mask) {
+					vga_sync_line((i << 3) + j);
+					--limit;
+					common.vdirty[i] &= ~mask;
+				}
+				mask <<= 1;
+			}
+		}
+	}
+
+	ay38912_writePort((common.rom << 6) | (common.scroll & 0x3F));
+}
+
 static void vga_new_line(void)
 {
 	if (++common.cursor.y >= VGA_ROWS) {
@@ -78,98 +105,48 @@ static void vga_new_line(void)
 
 		/* Clear new row (not yet visible) */
 		uint8_t y = (VGA_ROWS + common.scroll) & 0x3F;
-		for (uint16_t i = 0; i < VGA_COLS; ++i) {
-			*(common.vram + ((uint16_t)y << 7) + i) = ' ';
-		}
-
-		/* Set scroll register */
-		ay38912_writePort((common.rom << 6) | ((++common.scroll) & 0x3F));
-	}
-}
-
-void vga_vblank_handler(void)
-{
-	char c = vga_dequeue();
-	unsigned char nl = 0;
-
-	if (c != 0) {
-		common.vram = _mmu_map_scratch(VGA_PAGE, &common.mmu_save);
-
-		if (common.cursor.state) {
-			vga_set(common.cursor.prev);
-			common.cursor.state = 0;
-		}
-
-		do {
-			switch (c) {
-				/* TODO add cursor movement etc */
-
-				case '\r':
-					common.cursor.x = 0;
-					break;
-
-				default:
-					vga_set(c);
-					if (++common.cursor.x < VGA_COLS) {
-						break;
-					}
-					common.cursor.x = 0;
-					/* fall though */
-				case '\n':
-					vga_new_line();
-					nl = 1;
-					break;
-			}
-
-			if (nl) {
-				break;
-			}
-
-			c = vga_dequeue();
-		} while (c != 0);
-
-		_mmu_map_scratch(common.mmu_save, NULL);
-	}
-	else {
-		/* Handle cursor */
-		if (++common.cursor.counter >= 26) {
-			common.cursor.counter = 0;
-
-			common.vram = _mmu_map_scratch(VGA_PAGE, &common.mmu_save);
-
-			if (common.cursor.state) {
-				vga_set(common.cursor.prev);
-				common.cursor.state = 0;
-			}
-			else {
-				common.cursor.state = 1;
-				common.cursor.prev = vga_get();
-				vga_set(CURSOR);
-			}
-
-			_mmu_map_scratch(common.mmu_save, NULL);
-		}
+		memset(common.vbuffer[y], ' ', VGA_COLS);
+		vga_mark_dirty(y);
+		++common.scroll;
 	}
 }
 
 void vga_putchar(char c)
 {
-	vga_enqueue(c);
+	if (common.cursor.state) {
+		vga_set(common.cursor.prev);
+		common.cursor.state = 0;
+		common.cursor.counter = 0;
+	}
+
+	switch (c) {
+		case '\r':
+			common.cursor.x = 0;
+			break;
+
+		case '\n':
+			vga_new_line();
+			break;
+
+		default:
+			vga_set(c);
+			if (++common.cursor.x >= VGA_COLS) {
+				common.cursor.x = 0;
+				vga_new_line();
+			}
+			break;
+	}
 }
 
 void vga_clear(void)
 {
-	/* Select blank ROM to hide VRAM manipulation
-	 * during visible portion */
-	ay38912_writePort(((common.rom + 2) << 6) | (common.scroll & 0x3F));
-
-	/* Fill whole VRAM with spaces */
-	common.vram = mmu_map_scratch(VGA_PAGE, &common.mmu_save);
-	memset(common.vram, ' ', 8 * 1024);
-	mmu_map_scratch(common.mmu_save, NULL);
-
-	/* Restore previous ROM */
-	ay38912_writePort((common.rom << 6) | (common.scroll & 0x3F));
+	memset(common.vbuffer, ' ', sizeof(common.vbuffer));
+	memset(common.vdirty, 0xFF, sizeof(common.vdirty));
+	common.cursor.counter = 0;
+	common.cursor.prev = ' ';
+	common.cursor.state = 0;
+	common.cursor.x = 0;
+	common.cursor.y = 0;
 }
 
 void vga_select_rom(uint8_t rom)

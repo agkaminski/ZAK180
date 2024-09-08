@@ -45,7 +45,7 @@ ITC = 0x0034      ; INT/TRAP Control Register
 
 reset:
 			; Disable RAM wait-states
-			ld a, #0x30
+			ld a, #0x00
 			out0 (#DCNTL), a
 
 			; Disable refresh (no DRAM on the system)

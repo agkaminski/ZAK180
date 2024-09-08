@@ -33,3 +33,26 @@ void *mmu_map_scratch(uint8_t page, uint8_t *old)
 
 	return addr;
 }
+
+/* Return physical page corresponding to the given vaddr */
+uint8_t mmu_get_page(void *vaddr)
+{
+	uint8_t vpage = (uint16_t)vaddr >> 12;
+	uint8_t base = CBAR;
+	uint8_t ppage;
+
+	if (vpage >= (base >> 4)) {
+		/* Common 1 area */
+		ppage = CBR;
+	}
+	else if (vpage >= (base & 0x0F)) {
+		/* Bank area */
+		ppage = BBR;
+	}
+	else {
+		/* Common 0 area */
+		ppage = 0;
+	}
+
+	return ppage + vpage;
+}
