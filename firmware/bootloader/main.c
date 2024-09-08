@@ -54,18 +54,10 @@ int main(void)
 
 	uint16_t j = 0;
 	while (1) {
-		//for (volatile uint16_t i = 1; i != 0; ++i);
+		for (volatile uint16_t i = 1; i != 0; ++i);
 		for (volatile uint16_t i = 1; i != 0; ++i);
 		//printf("Test test test test Test test test test test test test test test test\r\n");
 		printf("%d %d\r\n", j, j);
-		printf("test\r\n");
-		printf("test\r\n");
-		printf("test\r\n");
-		printf("test\r\n");
-		printf("test\r\n");
-		printf("test\r\n");
-		printf("test\r\n");
-		printf("test\r\n");
 		++j;
 	}
 

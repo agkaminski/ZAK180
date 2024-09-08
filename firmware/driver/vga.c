@@ -10,6 +10,7 @@
 #include "vga.h"
 #include "ay38912.h"
 #include "mmu.h"
+#include "critical.h"
 
 #define VGA_PAGE 0xFE
 #define VGA_ROWS 60
@@ -81,6 +82,20 @@ void vga_vblank_handler(void)
 {
 	uint8_t limit = 4;
 
+	if (++common.cursor.counter > 28) {
+		common.cursor.counter = 0;
+
+		if (common.cursor.state) {
+			vga_set(common.cursor.prev);
+			common.cursor.state = 0;
+		}
+		else {
+			common.cursor.prev = vga_get();
+			vga_set(CURSOR);
+			common.cursor.state = 1;
+		}
+	}
+
 	for (uint8_t i = 0; (i < sizeof(common.vdirty)) && limit; ++i) {
 		if (common.vdirty[i]) {
 			uint8_t mask = 1;
@@ -113,11 +128,13 @@ static void vga_new_line(void)
 
 void vga_putchar(char c)
 {
+	_CRITICAL_START;
 	if (common.cursor.state) {
 		vga_set(common.cursor.prev);
 		common.cursor.state = 0;
-		common.cursor.counter = 0;
 	}
+	common.cursor.counter = 0;
+	_CRITICAL_END;
 
 	switch (c) {
 		case '\r':
