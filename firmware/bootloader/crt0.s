@@ -44,11 +44,12 @@ ITC = 0x0034      ; INT/TRAP Control Register
 .org 0x8000
 
 reset:
-			; Disable wait-states, memory and I/O are fast enough
-			ld a, #0x00
+			; Disable RAM wait-states
+			ld a, #0x30
 			out0 (#DCNTL), a
 
 			; Disable refresh (no DRAM on the system)
+			ld a, #0x00
 			out0 (#RCR), a
 
 			; Setup logical layout

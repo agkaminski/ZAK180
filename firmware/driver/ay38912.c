@@ -44,6 +44,5 @@ void ay38912_writePort(unsigned char byte)
 void ay38912_setPort(unsigned char dir)
 {
 	LATCH = R7;
-	//WRITE = READ | (!!dir << 6);
-	WRITE = 0xC0;
+	WRITE = READ | (!!dir << 6);
 }

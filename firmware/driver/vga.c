@@ -26,7 +26,7 @@ static char g_cursor_prev;
 volatile unsigned char g_vsync;
 
 static struct {
-	char fifo[32];
+	char fifo[8];
 	volatile uint8_t wptr;
 	volatile uint8_t rptr;
 	unsigned char scroll;
@@ -68,22 +68,26 @@ static char vga_dequeue(void)
 
 static void vga_set(char c)
 {
-	*(common.vram + ((uint16_t)common.cursor.y << 7) + common.cursor.x) = c;
+	uint8_t y = (common.cursor.y + common.scroll) & 0x3F;
+	*(common.vram + ((uint16_t)y << 7) + common.cursor.x) = c;
 }
 
 static char vga_get(void)
 {
-	return *(common.vram + ((uint16_t)common.cursor.y << 7) + common.cursor.x);
+	uint8_t y = (common.cursor.y + common.scroll) & 0x3F;
+	return *(common.vram + ((uint16_t)y << 7) + common.cursor.x);
 }
 
+/* TODO scroll not working in rev A because of bad AY-3-8912 decoding */
 static void vga_new_line(void)
 {
 	if (++common.cursor.y >= VGA_ROWS) {
 		common.cursor.y = VGA_ROWS - 1;
 
 		/* Clear new row (not yet visible) */
+		uint8_t y = (VGA_ROWS + common.scroll) & 0x3F;
 		for (uint16_t i = 0; i < VGA_COLS; ++i) {
-			*(common.vram + (128 * VGA_ROWS) + i) = ' ';
+			*(common.vram + ((uint16_t)y << 7) + i) = ' ';
 		}
 
 		/* Set scroll register */
@@ -135,7 +139,7 @@ void vga_vblank_handler(void)
 		_mmu_map_scratch(common.mmu_save, NULL);
 	}
 	else {
-		/* Handle cursor, toggle once*/
+		/* Handle cursor */
 		if (++common.cursor.counter >= 26) {
 			common.cursor.counter = 0;
 
@@ -163,9 +167,9 @@ void vga_putchar(char c)
 
 void vga_clear(void)
 {
-	/* Select ROM #3 (should be blank) to hide VRAM manipulation
+	/* Select blank ROM to hide VRAM manipulation
 	 * during visible portion */
-	ay38912_writePort((0x3 << 6) | (common.scroll & 0x3F));
+	ay38912_writePort(((common.rom + 2) << 6) | (common.scroll & 0x3F));
 
 	/* Fill whole VRAM with spaces */
 	common.vram = mmu_map_scratch(VGA_PAGE, &common.mmu_save);
