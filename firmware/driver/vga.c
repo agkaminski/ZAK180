@@ -4,6 +4,30 @@
  * See LICENSE.md
  */
 
+/* General software architecture:
+ * Double buffering is used (with only visible
+ * portion of the row stored), all modifications
+ * are performed on the buffer, with no timing
+ * requirements (apart from some variables that
+ * need to be protected by a critical section).
+ * Modified row is then marked as dirty, which
+ * promts IRQ handler to sync it with the VRAM
+ * itself. This is done via DMA channel 0 to
+ * make sure we can copy data in time before
+ * visible portion sets in. Also, because of
+ * this, only a limited number of lines may be
+ * updated per vblank event.
+ * Thanks to usage of DMA we do not have to
+ * ever map the VRAM to the logical address
+ * space. Downside is usage of ~5 KB for the
+ * buffer. This sollution might be optimised
+ * for memory usage by keeping only dirty lines
+ * in the buffer, although some mechanism of
+ * fetching data from VRAM would be required
+ * instead. Act of fetching data would block
+ * the writer until next vblank, so this
+ * solution seem suboptimal. */
+
 #include <string.h>
 #include <z180/z180.h>
 
@@ -144,6 +168,7 @@ void vga_putchar(char c)
 	_CRITICAL_END;
 
 	switch (c) {
+		/* TODO add terminal control, tab, etc. */
 		case '\r':
 			common.cursor.x = 0;
 			break;
@@ -164,13 +189,15 @@ void vga_putchar(char c)
 
 void vga_clear(void)
 {
-	memset(common.vbuffer, ' ', sizeof(common.vbuffer));
-	memset(common.vdirty, 0xFF, sizeof(common.vdirty));
+	_CRITICAL_START;
 	common.cursor.counter = 0;
 	common.cursor.prev = ' ';
 	common.cursor.state = 0;
+	memset(common.vbuffer, ' ', sizeof(common.vbuffer));
+	memset(common.vdirty, 0xFF, sizeof(common.vdirty));
 	common.cursor.x = 0;
 	common.cursor.y = 0;
+	_CRITICAL_END;
 }
 
 void vga_select_rom(uint8_t rom)
