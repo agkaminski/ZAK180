@@ -25,6 +25,54 @@ UN\*X-like features (not even close to the full POSIX compability). Hopefully,
 it will be possible to port some UN\*X applications (like vi), although limited
 user process address space may be an obstacle (56 KB + 4 KB of stack).
 
+## Memory map
+
+| Start   | End     | Description                              |
+|---------|---------|------------------------------------------|
+| 0x00000 | 0x03FFF | ROM, disabled after boot, after that RAM |
+| 0x04000 | 0xFDFFF | RAM                                      |
+| 0xFE000 | 0xFFFFF | Memory mapped I/O, VGA VRAM              |
+
+## I/O map
+
+8-bit I/O is used.
+
+| Start | End  | Description             |
+|-------|------|-------------------------|
+| 0x00  | 0x3F | Z180 internal I/O       |
+| 0x40  | 0x5F | VBLANK IRQ acknowlage   |
+| 0x60  | 0x7F | ROM disable control     |
+| 0x80  | 0x9F | Keyboard                |
+| 0xA0  | 0xBF | Z80 PIO (user port)     |
+| 0xC0  | 0xDF | AY-3-8912               |
+| 0xE0  | 0xFF | 82077 floppy controller |
+
+## MMU memory layouts
+
+### Bootloader
+
+| Region   | Logical start | Logical end | Physical start | Physical end | Description        |
+|----------|---------------|-------------|----------------|--------------|--------------------|
+| Common 0 | 0x0000        | 0x5FFF      | 0x00000        | 0x05FFF      | Kernel entry point |
+| Bank     | 0x6000        | 0x7FFF      | N/A            | N/A          | Memory access      |
+| Common 1 | 0x8000        | 0xFFFF      | 0xE8000        | 0xEFFFF      | Code and data      |
+
+### Kernel
+
+| Region   | Logical start | Logical end | Physical start | Physical end | Description        |
+|----------|---------------|-------------|----------------|--------------|--------------------|
+| Common 0 | 0x0000        | 0xDFFF      | 0x00000        | 0x0DFFF      | Kernel code/data   |
+| Bank     | 0xE000        | 0xEFFF      | N/A            | N/A          | Memory access      |
+| Common 1 | 0xF000        | 0xFFFF      | N/A            | N/A          | Switchable stack   |
+
+### User
+
+| Region   | Logical start | Logical end | Physical start | Physical end | Description        |
+|----------|---------------|-------------|----------------|--------------|--------------------|
+| Common 0 | 0x0000        | 0x0FFF      | 0x00000        | 0x00FFF      | Kernel entry       |
+| Bank     | 0x1000        | 0xEFFF      | N/A            | N/A          | User code/data     |
+| Common 1 | 0xF000        | 0xFFFF      | N/A            | N/A          | Switchable stack   |
+
 ## Repository structure
 
 ### datasheet
