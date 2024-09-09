@@ -63,6 +63,54 @@ static void kernel_jump(void)
 	/* Never reached */
 }
 
+static uint8_t mem_compare(uint8_t pattern) __naked
+{
+	(void)pattern;
+
+	__asm
+		ld hl, #0x6000
+		ld bc, #SCRATCH_SIZE
+	00000$:
+		cpi
+		jr nz, 00001$
+		ld e, a
+		ld a, b
+		or c
+		ret z
+		ld a, e
+		jr 00000$
+	00001$:
+		ld a, #0xFF
+		ret
+	__endasm;
+}
+
+static int mem_test(uint8_t start, uint8_t end)
+{
+	static const uint8_t patterns[] = { 0x55, 0xAA, 0x00 };
+	uint32_t total = 0;
+
+	for (uint8_t page = start; page < end; page += SCRATCH_SIZE / PAGE_SIZE) {
+		uint8_t *mem = mmu_map_scratch(page, NULL);
+
+		for (uint8_t i = 0; i < sizeof(patterns); ++i) {
+			uint8_t pattern = patterns[i];
+			memset(mem, pattern, SCRATCH_SIZE);
+			if (mem_compare(pattern)) {
+				printf("\r\nMemory test failed at page 0x%02x\r\n", page);
+				return -1;
+			}
+		}
+
+		total += SCRATCH_SIZE;
+		printf("\r%llu bytes OK", total);
+	}
+
+	printf("\n");
+
+	return 0;
+}
+
 int main(void)
 {
 	uart_init();
@@ -70,8 +118,13 @@ int main(void)
 
 	printf("ZAK180 Bootloader rev " VERSION " compiled on " DATE "\r\n");
 
+	int ret = mem_test(0x00, 0xE8);
+	if (ret < 0) {
+		fatal();
+	}
+
 	printf("Floppy drive initialisation\r\n");
-	int ret = floppy_init();
+	ret = floppy_init();
 	if (ret < 0) {
 		printf("Could not initialise media, please insert the system disk\r\n");
 		fatal();
