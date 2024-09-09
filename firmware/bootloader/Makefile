@@ -5,7 +5,10 @@ CODE = 0x8200
 DATA = 0xC000
 GHASH = "$(shell git describe --always --dirty)"
 DATE = "$(shell date +"%X %x")"
-CFLAGS = -m${CPU} -DVERSION='${GHASH}' -DDATE='${DATE}' -L../driver -L../filesystem -I. -I../driver
+CFLAGS = -m${CPU} -DVERSION='${GHASH}' -DDATE='${DATE}' \
+  -L../driver -L../filesystem \
+  -I. -I../driver \
+  --opt-code-size --max-allocs-per-node 10000
 LDFLAGS = --code-loc ${CODE} --data-loc ${DATA} --no-std-crt0
 
 SRC = main.c
@@ -26,7 +29,7 @@ ${TARGET}.hex: ${OBJ}
 	@sdcc -o ${TARGET}.hex -l ${LIB} ${CFLAGS} ${LDFLAGS} ${OBJ}
 
 %.rel: %.c
-	@sdcc ${CFLAGS} -c "$<"
+	sdcc ${CFLAGS} -c "$<"
 
 %.rel: %.s
 	@sdasz80 -l -o -s "$<"
