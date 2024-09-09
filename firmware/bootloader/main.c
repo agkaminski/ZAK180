@@ -101,8 +101,7 @@ int main(void)
 		uint16_t left = SCRATCH_SIZE;
 		uint16_t pos = 0;
 		while (left) {
-			/* FIXME SCRATCH_SIZE is not working for some reason */
-			int got = fat12_file_read(&fs, &file, dest + pos, 512, offs);
+			int got = fat12_file_read(&fs, &file, dest + pos, SCRATCH_SIZE, offs);
 			if (got < 0) {
 				printf("File read error %d\r\n", got);
 				fatal();

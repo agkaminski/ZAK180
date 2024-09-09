@@ -240,7 +240,7 @@ int fat12_file_read(struct fat12_fs *fs, struct fat12_file *file, void *buff, si
 			chunk = bufflen - len;
 		}
 
-		memcpy(buff + len, fs->sbuff + pos, chunk);
+		memcpy((uint8_t *)buff + len, fs->sbuff + pos, chunk);
 
 		len += chunk;
 		offs += chunk;
