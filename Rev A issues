@@ -7,3 +7,5 @@
 - Wierd kicad schematic glitch - A0 to the sound subsystem is
   actually connected to D0 instead. Isolate U11 pin 6 and route
   A0 signal from the CPU instead to fix the issue.
+- Data and address bus routed to the keyboard connector are
+  swapped. Pretty much unfixable in rev A.
