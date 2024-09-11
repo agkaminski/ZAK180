@@ -7,6 +7,8 @@
 
 .globl _main
 .globl _vga_vblank_handler
+.globl _uart0_irq_handler
+.globl _uart1_irq_handler
 
 .z180
 
@@ -155,14 +157,14 @@ _irq_vblank:
 
 _irq_uart0:
 			SAVE
-			; TODO
+			call _uart0_irq_handler
 			RESTORE
 			ei
 			reti
 
 _irq_uart1:
 			SAVE
-			; TODO
+			call _uart1_irq_handler
 			RESTORE
 			ei
 			reti

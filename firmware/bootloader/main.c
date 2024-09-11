@@ -20,7 +20,7 @@ int putchar(int c)
 {
 	char t = c;
 
-	uart1_write_poll(&t, 1);
+	uart1_write(&t, 1, 1);
 	vga_putchar(t);
 
 	return 1;

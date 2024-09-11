@@ -4,11 +4,26 @@
  * See LICENSE.md
  */
 
-#include <stdbool.h>
+#include <stdint.h>
 
 #include <z180/z180.h>
 
+#include "critical.h"
 #include "uart.h"
+
+#define FIFO_SIZE 64
+
+struct fifo {
+	uint8_t buff[FIFO_SIZE];
+	uint8_t rd, wr;
+};
+
+struct uart_ctx {
+	struct fifo tx;
+	struct fifo rx;
+};
+
+static struct uart_ctx uart[2];
 
 static unsigned char uart0_txready(void)
 {
@@ -30,70 +45,158 @@ static unsigned char uart1_rxready(void)
 	return STAT1 & (1 << 7);
 }
 
-int uart0_write_poll(const void *buff, size_t bufflen)
+static int _fifo_push(struct fifo *fifo, uint8_t c, uint8_t overwrite)
 {
-	for (size_t i = 0; i < bufflen; ++i) {
-		while (!uart0_txready());
-		TDR0 = ((unsigned char *)buff)[i];
+	if (((fifo->wr + 1) % sizeof(fifo->buff)) == fifo->rd) {
+		if (overwrite) {
+			++fifo->rd;
+		}
+		else {
+			return -1;
+		}
 	}
-	return bufflen;
+
+	fifo->buff[fifo->wr] = c;
+	fifo->wr = (fifo->wr + 1) % sizeof(fifo->buff);
+
+	return 0;
 }
 
-int uart0_read_poll(void *buff, size_t bufflen)
+static int fifo_push(struct fifo *fifo, uint8_t c)
 {
-	/* TODO */
-	(void)buff;
-	(void)bufflen;
-	return -1;
+	_CRITICAL_START;
+	int ret = _fifo_push(fifo, c, 0);
+	_CRITICAL_END;
+
+	return ret;
 }
 
-int uart0_write(const void *buff, size_t bufflen)
+static int _fifo_pop(struct fifo *fifo, uint8_t *c)
 {
-	/* TODO */
-	(void)buff;
-	(void)bufflen;
-	return -1;
-}
-
-int uart0_read(void *buff, size_t bufflen)
-{
-	/* TODO */
-	(void)buff;
-	(void)bufflen;
-	return -1;
-}
-
-int uart1_write_poll(const void *buff, size_t bufflen)
-{
-	for (size_t i = 0; i < bufflen; ++i) {
-		while (!uart1_txready());
-		TDR1 = ((unsigned char *)buff)[i];
+	if (fifo->wr == fifo->rd) {
+		return -1;
 	}
-	return bufflen;
+
+	*c = fifo->buff[fifo->rd];
+	fifo->rd = (fifo->rd + 1) % sizeof(fifo->buff);
+
+	return 0;
 }
 
-int uart1_read_poll(void *buff, size_t bufflen)
+static int fifo_pop(struct fifo *fifo, uint8_t *c)
 {
-	/* TODO */
-	(void)buff;
-	(void)bufflen;
-	return -1;
+	_CRITICAL_START;
+	int ret = _fifo_pop(fifo, c);
+	_CRITICAL_END;
+
+	return ret;
 }
 
-int uart1_write(const void *buff, size_t bufflen)
+void uart0_irq_handler(void)
 {
-	/* TODO */
-	(void)buff;
-	(void)bufflen;
-	return -1;
+	if (uart0_rxready()) {
+		(void)_fifo_push(&uart[0].rx, RDR0, 1);
+	}
+
+	if (uart0_txready()) {
+		uint8_t c;
+		if (_fifo_pop(&uart[0].tx, &c) != 0) {
+			STAT0 &= ~1;
+		}
+		else {
+			TDR0 = c;
+		}
+	}
 }
 
-int uart1_read(void *buff, size_t bufflen)
+void uart1_irq_handler(void)
 {
-	/* TODO */
-	(void)buff;
-	(void)bufflen;
-	return -1;
+	if (uart1_rxready()) {
+		(void)_fifo_push(&uart[1].rx, RDR1, 1);
+	}
+
+	if (uart1_txready()) {
+		uint8_t c;
+		if (_fifo_pop(&uart[1].tx, &c) != 0) {
+			STAT1 &= ~1;
+		}
+		else {
+			TDR1 = c;
+		}
+	}
+}
+
+int uart0_write(const void *buff, size_t bufflen, int block)
+{
+	size_t len;
+
+	for (len = 0; len < bufflen; ++len) {
+		int res = fifo_push(&uart[0].tx, ((uint8_t *)buff)[len]);
+
+		STAT0 |= 1;
+
+		if (res != 0) {
+			if (!block) {
+				break;
+			}
+
+			/* TODO reschedule */
+		}
+	}
+
+	return len;
+}
+
+int uart0_read(void *buff, size_t bufflen, int block)
+{
+	size_t len;
+
+	for (len = 0; len < bufflen; ++len) {
+		while (fifo_pop(&uart[0].rx, (uint8_t *)buff + len) < 0) {
+			if (!block) {
+				break;
+			}
+
+			/* TODO reschedule */
+		}
+	}
+}
+
+int uart1_write(const void *buff, size_t bufflen, int block)
+{
+	size_t len;
+
+	for (len = 0; len < bufflen; ++len) {
+		int res = fifo_push(&uart[1].tx, ((uint8_t *)buff)[len]);
+
+		STAT1 |= 1;
+
+		if (res != 0) {
+			if (!block) {
+				break;
+			}
+
+			/* TODO reschedule */
+
+		}
+	}
+
+	return len;
+}
+
+int uart1_read(void *buff, size_t bufflen, int block)
+{
+	size_t len;
+
+	for (len = 0; len < bufflen; ++len) {
+		while (fifo_pop(&uart[1].rx, (uint8_t *)buff + len) < 0) {
+			if (!block) {
+				break;
+			}
+
+			/* TODO reschedule */
+		}
+	}
 }
 
 void uart_init(void)
@@ -104,7 +207,7 @@ void uart_init(void)
 	CNTLA0 = 0x64;
 	CNTLA1 = 0x64;
 
-	/* Enable interrupts */
-	//STAT0 = 0x09;
-	//STAT1 = 0x09;
+	/* Enable RX interrupts */
+	STAT0 = 0x08;
+	STAT1 = 0x08;
 }
