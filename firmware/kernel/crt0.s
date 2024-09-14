@@ -105,17 +105,38 @@ ivt:
 .word _irq_uart1  ; ASCI 1
 
 .macro SAVE
-			ex af, af'
-			exx
+			push af
+			push bc
+			push de
+			push hl
 			push ix
 			push iy
+
+			ld hl, #0
+			add hl, sp
+			in0 a, (#BBR)
+			ld c, a
+			in0 a, (#CBR)
+			ld b, a
+			push bc
+			push hl
 .endm
 
 .macro RESTORE
+			pop hl
+			pop bc
+			ld a, b
+			out0 (#CBR), a
+			ld a, c
+			out0 (#BBR), a
+			ld sp, hl
+
 			pop iy
 			pop ix
-			exx
-			ex af, af'
+			pop hl
+			pop de
+			pop bc
+			pop af
 .endm
 
 _irq_bad:
