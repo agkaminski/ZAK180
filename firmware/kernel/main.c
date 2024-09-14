@@ -33,22 +33,36 @@ int main(void)
 
 	printf("ZAK180 Operating System rev " VERSION " compiled on " DATE "\r\n");
 
-	for (uint8_t i = 0; i < 254; ++i) {
-		printf("Alloc %u pages, got page ", 2);
-		uint8_t page = memory_alloc(MEMORY_OWNER_KERNEL, 2);
-		printf("%u\r\n", page);
-	}
+	printf("alloc\r\n");
+	uint8_t page = memory_alloc(MEMORY_OWNER_KERNEL, 3);
+	printf("free\r\n");
+	memory_free(page + 1, 1);
+	printf("free\r\n");
+	memory_free(page, 1);
+	printf("free\r\n");
+	memory_free(page + 2, 1);
 
-	for (uint8_t i = 0; i < 254; ++i) {
-		printf("Free %u pages at %u\r\n", 1, i);
-		memory_free(i, 1);
-	}
+	printf("alloc\r\n");
+	page = memory_alloc(MEMORY_OWNER_KERNEL, 6);
+	printf("free\r\n");
+	memory_free(page + 2, 2);
+	printf("alloc\r\n");
+	memory_alloc(MEMORY_OWNER_KERNEL, 2);
+	printf("free\r\n");
+	memory_free(page + 5, 1);
+	printf("free\r\n");
+	memory_free(page + 4, 1);
+	printf("free\r\n");
+	memory_free(page + 3, 1);
+	printf("free\r\n");
+	memory_free(page + 2, 1);
+	printf("free\r\n");
+	memory_free(page + 1, 1);
+	printf("free\r\n");
+	memory_free(page, 1);
 
-	for (uint8_t i = 0; i < 254; ++i) {
-		printf("Alloc %u pages, got page ", 4);
-		uint8_t page = memory_alloc(MEMORY_OWNER_KERNEL, 4);
-		printf("%u\r\n", page);
-	}
+
+
 
 	while (1) {
 		char c;

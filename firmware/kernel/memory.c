@@ -85,6 +85,9 @@ static void memory_element_attach(struct memory_element **list, struct memory_el
 	if (memory_element_merge(it, element) == 0) {
 		memory_element_merge(it, it->next);
 	}
+	else {
+		memory_element_merge(element, element->next);
+	}
 }
 
 static void memory_element_detach(struct memory_element **list, struct memory_element *element)
@@ -189,7 +192,7 @@ void memory_free(uint8_t page, uint8_t pages)
 
 		if (curr != NULL) {
 			if (curr->start == page) {
-				if (curr->length != pages) {
+				if (curr->length > pages) {
 					curr = memory_element_split(curr, pages);
 				}
 				else {
@@ -197,14 +200,13 @@ void memory_free(uint8_t page, uint8_t pages)
 				}
 			}
 			else {
-				page = curr->start;
 				struct memory_element *t = memory_element_split(curr, page - curr->start);
 
 				/* Need to detach curr to avoid merge in attach */
 				memory_element_detach(&common.alloc, curr);
 				memory_element_attach(&common.alloc, t);
-				if (curr->length != pages) {
-					memory_element_attach(&common.free, curr);
+
+				if (curr->length > pages) {
 					t = memory_element_split(curr, curr->length - pages);
 					memory_element_attach(&common.alloc, curr);
 					curr = t;
