@@ -33,37 +33,6 @@ int main(void)
 
 	printf("ZAK180 Operating System rev " VERSION " compiled on " DATE "\r\n");
 
-	printf("alloc\r\n");
-	uint8_t page = memory_alloc(MEMORY_OWNER_KERNEL, 3);
-	printf("free\r\n");
-	memory_free(page + 1, 1);
-	printf("free\r\n");
-	memory_free(page, 1);
-	printf("free\r\n");
-	memory_free(page + 2, 1);
-
-	printf("alloc\r\n");
-	page = memory_alloc(MEMORY_OWNER_KERNEL, 6);
-	printf("free\r\n");
-	memory_free(page + 2, 2);
-	printf("alloc\r\n");
-	memory_alloc(MEMORY_OWNER_KERNEL, 2);
-	printf("free\r\n");
-	memory_free(page + 5, 1);
-	printf("free\r\n");
-	memory_free(page + 4, 1);
-	printf("free\r\n");
-	memory_free(page + 3, 1);
-	printf("free\r\n");
-	memory_free(page + 2, 1);
-	printf("free\r\n");
-	memory_free(page + 1, 1);
-	printf("free\r\n");
-	memory_free(page, 1);
-
-
-
-
 	while (1) {
 		char c;
 		uart1_read(&c, 1, 1);

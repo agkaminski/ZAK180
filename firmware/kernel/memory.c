@@ -129,18 +129,6 @@ static struct memory_element *memory_element_split(struct memory_element *victim
 	return newborn;
 }
 
-#include <stdio.h>
-static void memory_dump(struct memory_element *list)
-{
-	struct memory_element *it = list;
-
-	while (it != NULL) {
-		printf("[ %u, %u, %p ]->", it->start, it->length, it->owner);
-		it = it->next;
-	}
-	printf("\r\n");
-}
-
 static uint8_t memory_alloc_callback(void *owner, uint8_t pages, memory_page_release callback)
 {
 	struct memory_element *curr = common.free, *prev;
@@ -163,11 +151,6 @@ static uint8_t memory_alloc_callback(void *owner, uint8_t pages, memory_page_rel
 		page = curr->start;
 		memory_element_attach(&common.alloc, curr);
 	}
-
-	printf("alloc:\r\n");
-	memory_dump(common.alloc);
-	printf("free:\r\n");
-	memory_dump(common.free);
 
 	return page;
 }
@@ -222,12 +205,6 @@ void memory_free(uint8_t page, uint8_t pages)
 			break;
 		}
 	}
-
-	printf("alloc:\r\n");
-	memory_dump(common.alloc);
-	printf("free:\r\n");
-	memory_dump(common.free);
-
 }
 
 uint8_t memory_cache_alloc(memory_page_release release_callback)
