@@ -67,34 +67,24 @@ static int memory_element_merge(struct memory_element *dest, struct memory_eleme
 
 static void memory_element_attach(struct memory_element **list, struct memory_element *element)
 {
-	struct memory_element *it = *list, *prev = NULL;
+	struct memory_element *it = *list;
 
-	if (it == NULL) {
-		*list = element;
-		element->next = NULL;
-		return;
-	}
-
-	while (element->start < it->start && it != NULL) {
-		prev = it;
+	while (it != NULL && element->start < it->start) {
 		it = it->next;
 	}
 
-	if (memory_element_merge(prev, element) < 0) {
-		if (prev != NULL) {
-			element->next = prev->next;
-			prev->next = element;
-		}
-		else {
-			element->next = *list;
-			*list = element;
-		}
+	if (it != NULL) {
+		element->next = it->next;
+		it->next = element;
 	}
 	else {
-		element = prev;
+		element->next = *list;
+		*list = element;
 	}
 
-	(void)memory_element_merge(element, element->next);
+	if (memory_element_merge(it, element) == 0) {
+		memory_element_merge(it, it->next);
+	}
 }
 
 static void memory_element_detach(struct memory_element **list, struct memory_element *element)
@@ -136,6 +126,18 @@ static struct memory_element *memory_element_split(struct memory_element *victim
 	return newborn;
 }
 
+#include <stdio.h>
+static void memory_dump(struct memory_element *list)
+{
+	struct memory_element *it = list;
+
+	while (it != NULL) {
+		printf("[ %u, %u, %p ]->", it->start, it->length, it->owner);
+		it = it->next;
+	}
+	printf("\r\n");
+}
+
 static uint8_t memory_alloc_callback(void *owner, uint8_t pages, memory_page_release callback)
 {
 	struct memory_element *curr = common.free, *prev;
@@ -159,6 +161,11 @@ static uint8_t memory_alloc_callback(void *owner, uint8_t pages, memory_page_rel
 		memory_element_attach(&common.alloc, curr);
 	}
 
+	printf("alloc:\r\n");
+	memory_dump(common.alloc);
+	printf("free:\r\n");
+	memory_dump(common.free);
+
 	return page;
 }
 
@@ -169,38 +176,56 @@ uint8_t memory_alloc(void *owner, uint8_t pages)
 
 void memory_free(uint8_t page, uint8_t pages)
 {
-	struct memory_element *curr = common.alloc, *prev;
+	struct memory_element *curr = common.alloc;
 
-	while (curr != NULL) {
-		if (curr->start >= page && (curr->start + pages) < page) {
-			break;
+	while (pages) {
+		while (curr != NULL) {
+			if (curr->start <= page && (curr->start + curr->length) > page) {
+				break;
+			}
+
+			curr = curr->next;
 		}
 
-		prev = curr;
-		curr = curr->next;
-	}
-
-	if (curr != NULL) {
-		if (curr->start == page) {
-			if (curr->length != pages) {
-				curr = memory_element_split(curr, pages);
+		if (curr != NULL) {
+			if (curr->start == page) {
+				if (curr->length != pages) {
+					curr = memory_element_split(curr, pages);
+				}
+				else {
+					memory_element_detach(&common.alloc, curr);
+				}
 			}
-			memory_element_detach(&common.alloc, curr);
+			else {
+				page = curr->start;
+				struct memory_element *t = memory_element_split(curr, page - curr->start);
+
+				/* Need to detach curr to avoid merge in attach */
+				memory_element_detach(&common.alloc, curr);
+				memory_element_attach(&common.alloc, t);
+				if (curr->length != pages) {
+					memory_element_attach(&common.free, curr);
+					t = memory_element_split(curr, curr->length - pages);
+					memory_element_attach(&common.alloc, curr);
+					curr = t;
+				}
+			}
+
+			page += curr->length;
+			pages -= curr->length;
+
+			memory_element_attach(&common.free, curr);
 		}
 		else {
-			struct memory_element *t = memory_element_split(curr, page - curr->start);
-
-			/* Need to detach curr to avoid merge in attach */
-			memory_element_detach(&common.alloc, curr);
-			memory_element_attach(&common.alloc, t);
-			if (curr->length != pages) {
-				t = memory_element_split(curr, curr->length - pages);
-				memory_element_attach(&common.alloc, curr);
-				curr = t;
-			}
+			break;
 		}
-		memory_element_free(curr);
 	}
+
+	printf("alloc:\r\n");
+	memory_dump(common.alloc);
+	printf("free:\r\n");
+	memory_dump(common.free);
+
 }
 
 uint8_t memory_cache_alloc(memory_page_release release_callback)

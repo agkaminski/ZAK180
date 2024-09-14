@@ -7,6 +7,8 @@
 #include <string.h>
 #include <stdio.h>
 
+#include "memory.h"
+
 #include "../driver/uart.h"
 #include "../driver/vga.h"
 
@@ -22,10 +24,31 @@ int putchar(int c)
 
 int main(void)
 {
+	/* Start: 64 KB reserved for the kernel
+	 * End: VGA starts at @0xFE000 */
+	memory_init(16, 238);
+
 	uart_init();
 	vga_init();
 
-	printf("Kernel Hello World!\r\n");
+	printf("ZAK180 Operating System rev " VERSION " compiled on " DATE "\r\n");
+
+	for (uint8_t i = 0; i < 254; ++i) {
+		printf("Alloc %u pages, got page ", 2);
+		uint8_t page = memory_alloc(MEMORY_OWNER_KERNEL, 2);
+		printf("%u\r\n", page);
+	}
+
+	for (uint8_t i = 0; i < 254; ++i) {
+		printf("Free %u pages at %u\r\n", 1, i);
+		memory_free(i, 1);
+	}
+
+	for (uint8_t i = 0; i < 254; ++i) {
+		printf("Alloc %u pages, got page ", 4);
+		uint8_t page = memory_alloc(MEMORY_OWNER_KERNEL, 4);
+		printf("%u\r\n", page);
+	}
 
 	while (1) {
 		char c;

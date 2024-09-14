@@ -29,4 +29,6 @@ uint8_t memory_alloc(void *owner, uint8_t pages);
 /* Frees the memory starting at "page" of size previously allocated */
 void memory_free(uint8_t page, uint8_t pages);
 
+void memory_init(uint8_t start, uint8_t pages);
+
 #endif
