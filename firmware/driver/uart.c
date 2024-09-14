@@ -160,6 +160,8 @@ int uart0_read(void *buff, size_t bufflen, int block)
 			/* TODO reschedule */
 		}
 	}
+
+	return len;
 }
 
 int uart1_write(const void *buff, size_t bufflen, int block)
@@ -197,6 +199,8 @@ int uart1_read(void *buff, size_t bufflen, int block)
 			/* TODO reschedule */
 		}
 	}
+
+	return len;
 }
 
 void uart_init(void)
