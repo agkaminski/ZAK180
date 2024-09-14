@@ -10,9 +10,6 @@
 #include "../driver/uart.h"
 #include "../driver/vga.h"
 
-#define PAGE_SIZE    (4 * 1024)
-#define SCRATCH_SIZE (8 * 1024)
-
 int putchar(int c)
 {
 	char t = c;
