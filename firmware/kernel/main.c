@@ -8,6 +8,7 @@
 #include <stdio.h>
 
 #include "memory.h"
+#include "timer.h"
 
 #include "../driver/uart.h"
 #include "../driver/vga.h"
@@ -27,11 +28,17 @@ int main(void)
 	/* Start: 64 KB reserved for the kernel
 	 * End: VGA starts at @0xFE000 */
 	memory_init(16, 238);
+	timer_init();
 
 	uart_init();
 	vga_init();
 
-	printf("ZAK180 Operating System rev " VERSION " compiled on " DATE "\r\n");
+	printf("ZAK180 Operating System rev " VERSION " " DATE "\r\n");
+
+	while (1) {
+		for (volatile uint16_t i = 1; i != 0; ++i);
+		printf("Time: %llu\r\n", timer_get());
+	}
 
 	while (1) {
 		char c;

@@ -1,6 +1,6 @@
 .PHONY: clean
 
-all: ay38912.lib mmu.lib uart.lib vga.lib floppy.lib pio.lib
+all: ay38912.lib mmu.lib uart.lib vga.lib floppy.lib pio.lib prt.lib
 
 ay38912.lib: ay38912.rel
 	@sdar -q "$@" $^
@@ -18,6 +18,9 @@ floppy.lib: floppy_cmd.rel floppy.rel
 	sdar -q "$@" $^
 
 pio.lib: pio.rel
+	@sdar -q "$@" $^
+
+prt.lib: prt.rel
 	@sdar -q "$@" $^
 
 %.rel: %.c

@@ -9,6 +9,7 @@
 .globl _vga_vblank_handler
 .globl _uart0_irq_handler
 .globl _uart1_irq_handler
+.globl _timer_irq_handler
 
 .z180
 
@@ -21,6 +22,10 @@ RCR =    0x0036   ; refresh control register
 
 ROMDIS = 0x0060   ; ROM disable/enable control register
 INT2_ACK = 0x0040 ; VBLANK INT2 acknownlage
+
+TCR = 0x0010      ; PRT control
+TMDR0L = 0x000C   ; Timer Data Register Channel 0L
+TMDR0H = 0x000D   ; Timer Data Register Channel 0H
 
 ITC = 0x0034      ; INT/TRAP Control Register
 
@@ -91,7 +96,7 @@ reset:
 ivt:
 .word _irq_bad    ; INT1, floppy IRQ not supported
 .word _irq_vblank ; INT2, VBLANK
-.word _irq_bad    ; PRT CH0, not supported
+.word _irq_prt0   ; PRT CH0, systick
 .word _irq_bad    ; PRT CH1, not supported
 .word _irq_bad    ; DMA CH0, not supported
 .word _irq_bad    ; DMA CH1, not supported
@@ -118,8 +123,19 @@ _irq_bad:
 
 _irq_vblank:
 			SAVE
-			out0 (INT2_ACK), a
+			out0 (#INT2_ACK), a
 			call _vga_vblank_handler
+			RESTORE
+			ei
+			reti
+
+_irq_prt0:
+			SAVE
+			; acknownlage irq
+			in0 a, (#TCR)
+			in0 a, (#TMDR0L)
+			in0 a, (#TMDR0H)
+			call _timer_irq_handler
 			RESTORE
 			ei
 			reti

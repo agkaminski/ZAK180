@@ -68,7 +68,7 @@ int main(void)
 	uart_init();
 	vga_init();
 
-	printf("ZAK180 Bootloader rev " VERSION " compiled on " DATE "\r\n");
+	printf("ZAK180 Bootloader rev " VERSION " " DATE "\r\n");
 
 	printf("Floppy drive initialisation\r\n");
 	int ret = floppy_init();
