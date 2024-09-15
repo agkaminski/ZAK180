@@ -85,7 +85,6 @@ reset:
 			; That's enough to jump to C, we can finish
 			; init there
 
-			ei
 			call _main
 
 			; We shouldn't get here
@@ -114,21 +113,33 @@ ivt:
 
 			ld hl, #0
 			add hl, sp
+			in0 a, (#CBAR)
+			ld c, a
+			ld b, #0
+			push bc
 			in0 a, (#BBR)
 			ld c, a
 			in0 a, (#CBR)
 			ld b, a
 			push bc
 			push hl
+
+			; Pass a pointer to the context in hl
+			ld bc, #6
+			add hl, bc
 .endm
 
 .macro RESTORE
 			pop hl
 			pop bc
+			pop de
 			ld a, b
 			out0 (#CBR), a
 			ld a, c
 			out0 (#BBR), a
+			pop bc
+			ld a, e
+			out0 (#CBAR), a
 			ld sp, hl
 
 			pop iy

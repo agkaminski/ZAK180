@@ -9,6 +9,7 @@
 
 #include "memory.h"
 #include "timer.h"
+#include "thread.h"
 
 #include "../driver/uart.h"
 #include "../driver/vga.h"
@@ -29,9 +30,12 @@ int main(void)
 	 * End: VGA starts at @0xFE000 */
 	memory_init(16, 238);
 	timer_init();
+	thread_init();
 
 	uart_init();
 	vga_init();
+
+	_EI;
 
 	printf("ZAK180 Operating System rev " VERSION " " DATE "\r\n");
 

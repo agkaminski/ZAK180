@@ -5,6 +5,7 @@
  */
 
 #include "timer.h"
+#include "thread.h"
 #include "../driver/prt.h"
 #include "../driver/critical.h"
 
@@ -26,9 +27,10 @@ ktime_t timer_get(void)
 	return ret;
 }
 
-void timer_irq_handler(void)
+void timer_irq_handler(struct cpu_context *context)
 {
 	common.jiffies += SYSTICK_INTERVAL;
+	_thread_on_tick(context);
 }
 
 void timer_init(void)

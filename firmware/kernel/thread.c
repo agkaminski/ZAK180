@@ -1,0 +1,231 @@
+/* ZAK180 Firmaware
+ * Kernel threads
+ * Copyright: Aleksander Kaminski, 2024
+ * See LICENSE.md
+ */
+
+#include <stddef.h>
+
+#include "thread.h"
+#include "memory.h"
+#include "../driver/critical.h"
+#include "../driver/mmu.h"
+#include "../lib/errno.h"
+
+static struct {
+	struct thread *threads;
+	struct thread *sleeping;
+	struct thread *ready[THREAD_PRIORITY_NO];
+	struct thread *current;
+
+	uint16_t idcntr;
+
+	struct thread idle;
+
+	int8_t schedule;
+} common;
+
+static void _thread_enqueue(struct thread **queue, struct thread *thread, ktime_t wakeup)
+{
+	struct thread *curr = *queue, *prev = NULL;
+
+	thread->wakeup = wakeup;
+	thread->state = THREAD_STATE_SLEEP;
+
+	while (curr != NULL) {
+		if (wakeup) {
+			if (wakeup > curr->wakeup) {
+				break;
+			}
+		}
+		prev = curr;
+		curr = curr->qnext;
+	}
+
+	if (curr != NULL) {
+		thread->qnext = curr->qnext;
+		curr->qnext = thread;
+	}
+	else if (prev != NULL) {
+		thread->qnext = NULL;
+		prev->qnext = thread;
+	}
+	else {
+		*queue = thread;
+		thread->qnext = NULL;
+	}
+}
+
+static void _thread_dequeue(struct thread **queue, struct thread *thread)
+{
+	if (*queue == thread) {
+		*queue = thread->qnext;
+	}
+	else {
+		struct thread *curr = *queue;
+
+		while (curr != NULL && curr->qnext != thread) {
+			curr = curr->qnext;
+		}
+
+		if (curr == NULL) {
+			return;
+		}
+
+		curr->qnext = thread->qnext;
+	}
+
+	thread->qnext = NULL;
+	thread->wakeup = 0;
+	thread->state = THREAD_STATE_READY;
+
+	if (common.ready[thread->priority] == NULL) {
+		common.ready[thread->priority] = thread;
+	}
+	else {
+		struct thread *curr = common.ready[thread->priority];
+		while (curr->qnext != NULL) {
+			curr = curr->qnext;
+		}
+
+		curr->qnext = thread;
+	}
+}
+
+static void _threads_add_ready(struct thread *thread)
+{
+	struct thread *it = common.ready[common.current->priority];
+
+	while (it != NULL && it->qnext != NULL) {
+		it = it->qnext;
+	}
+
+	if (it == NULL) {
+		common.ready[common.current->priority] = thread;
+	}
+	else {
+		it->qnext = thread;
+	}
+
+	thread->qnext = NULL;
+}
+
+static void _thread_schedule(struct cpu_context *context)
+{
+	if (!common.schedule) {
+		return;
+	}
+
+	/* Put current thread */
+	if (common.current != NULL) {
+		common.current->context = context;
+		common.current->state = THREAD_STATE_READY;
+
+		_threads_add_ready(common.current);
+	}
+
+	/* Select new thread */
+	struct thread *selected = NULL;
+	for (uint8_t priority = 0; priority < THREAD_PRIORITY_NO; ++priority) {
+		if (common.ready[priority] != NULL) {
+			selected = common.ready[priority];
+			common.ready[priority] = selected->qnext;
+			selected->qnext = NULL;
+			break;
+		}
+	}
+
+	/* Some thread will be always ready, skip NULL check */
+	selected->state = THREAD_STATE_ACTIVE;
+
+	/* Map selected thread stack space into the scratch page */
+	uint8_t *scratch = mmu_map_scratch(selected->stack_page, NULL);
+	struct cpu_context *selctx = (void *)((uint8_t *)selected->context - 0x1000);
+
+	/* Switch context */
+	context->sp = selctx->sp;
+	context->mmu = selctx->mmu;
+	context->layout = selctx->layout;
+}
+
+void _thread_on_tick(struct cpu_context *context)
+{
+	ktime_t now = timer_get();
+
+	struct thread *it = common.sleeping;
+	while (it != NULL) {
+		if (it->wakeup >= now) {
+			_thread_dequeue(&common.sleeping, it);
+			_threads_add_ready(it);
+		}
+		else {
+			break;
+		}
+	}
+
+	_thread_schedule(context);
+}
+
+static void thread_context_create(struct thread *thread, uint16_t entry, void *arg)
+{
+	uint8_t *scratch = mmu_map_scratch(thread->stack_page, NULL);
+	struct cpu_context *tctx = (void *)(scratch + PAGE_SIZE - sizeof(struct cpu_context));
+
+	tctx->pc = entry;
+	tctx->af = 0;
+	tctx->bc = 0;
+	tctx->de = 0;
+	tctx->hl = (uint16_t)arg;
+	tctx->ix = 0;
+	tctx->iy = 0;
+
+	/* TODO set mmu layout according to the process */
+	tctx->layout = CONTEXT_LAYOUT_KERNEL;
+	tctx->mmu = (uint16_t)thread->stack_page << 8;
+	tctx->sp = 0;
+
+	thread->context = (void *)((uint8_t *)0 - sizeof(struct cpu_context));
+}
+
+static void thread_idle(void *arg)
+{
+	(void)arg;
+
+	while (1) {
+		__asm halt __endasm;
+	}
+}
+
+int thread_create(struct thread *thread, uint8_t priority, void (*entry)(void * arg), void *arg)
+{
+	thread->qnext = NULL;
+	thread->id = ++common.idcntr;
+	thread->refs = 1;
+	thread->state = THREAD_STATE_READY;
+	thread->priority = priority;
+	thread->exit = 0;
+	thread->wakeup = 0;
+
+	thread->stack_page = memory_alloc(NULL, 1);
+	if (thread->stack_page == 0) {
+		return -ENOMEM;
+	}
+
+	thread_context_create(thread, (uint16_t)entry, arg);
+
+	if (common.schedule) {
+		_CRITICAL_START;
+	}
+	_threads_add_ready(thread);
+	if (common.schedule) {
+		_CRITICAL_END;
+	}
+
+	return 0;
+}
+
+void thread_init(void)
+{
+	thread_create(&common.idle, THREAD_PRIORITY_NO - 1, thread_idle, NULL);
+	common.schedule = 1;
+}

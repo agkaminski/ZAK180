@@ -9,6 +9,8 @@
 
 #include <stdint.h>
 
+#include "../driver/cpu.h"
+
 #define SYSTICK_INTERVAL 10 /* ms */
 
 typedef uint64_t ktime_t;
@@ -17,7 +19,7 @@ ktime_t _timer_get(void);
 
 ktime_t timer_get(void);
 
-void timer_irq_handler(void);
+void timer_irq_handler(struct cpu_context *context);
 
 void timer_init(void);
 

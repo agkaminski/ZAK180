@@ -11,7 +11,7 @@ CFLAGS = -m${CPU} -DVERSION='${GHASH}' -DDATE='${DATE}' \
   --opt-code-size --max-allocs-per-node 10000
 LDFLAGS = --code-loc ${CODE} --data-loc ${DATA} --no-std-crt0
 
-SRC = main.c memory.c timer.c
+SRC = main.c memory.c timer.c thread.c
 OBJ = crt0.rel $(SRC:.c=.rel)
 DRIVERS = uart.lib floppy.lib ay38912.lib mmu.lib vga.lib prt.lib
 FILESYSTEMS = fat12.lib

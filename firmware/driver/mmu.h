@@ -21,6 +21,8 @@
 
 #include <stdint.h>
 
+#define PAGE_SIZE 4096
+
 /* Map selected page to the bank area,
  * return scratch address */
 void *mmu_map_scratch(uint8_t page, uint8_t *old);
