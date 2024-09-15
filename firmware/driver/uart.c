@@ -147,6 +147,15 @@ int uart0_write(const void *buff, size_t bufflen, int block)
 	return len;
 }
 
+int uart0_write_poll(const void *buff, size_t bufflen)
+{
+	for (size_t i = 0; i < bufflen; ++i) {
+		while (!uart0_txready());
+		TDR0 = ((unsigned char *)buff)[i];
+	}
+	return bufflen;
+}
+
 int uart0_read(void *buff, size_t bufflen, int block)
 {
 	size_t len;
@@ -184,6 +193,15 @@ int uart1_write(const void *buff, size_t bufflen, int block)
 	}
 
 	return len;
+}
+
+int uart1_write_poll(const void *buff, size_t bufflen)
+{
+	for (size_t i = 0; i < bufflen; ++i) {
+		while (!uart1_txready());
+		TDR1 = ((unsigned char *)buff)[i];
+	}
+	return bufflen;
 }
 
 int uart1_read(void *buff, size_t bufflen, int block)

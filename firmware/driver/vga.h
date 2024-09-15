@@ -11,7 +11,7 @@
 
 void vga_putchar(char c);
 
-void vga_clear(void);
+void _vga_clear(void);
 
 void vga_select_rom(uint8_t rom);
 

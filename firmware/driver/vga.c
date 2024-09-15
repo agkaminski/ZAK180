@@ -188,9 +188,8 @@ void vga_putchar(char c)
 	}
 }
 
-void vga_clear(void)
+void _vga_clear(void)
 {
-	_CRITICAL_START;
 	common.cursor.counter = 0;
 	common.cursor.prev = ' ';
 	common.cursor.state = 0;
@@ -198,7 +197,6 @@ void vga_clear(void)
 	memset(common.vdirty, 0xFF, sizeof(common.vdirty));
 	common.cursor.x = 0;
 	common.cursor.y = 0;
-	_CRITICAL_END;
 }
 
 void vga_select_rom(uint8_t rom)
@@ -218,6 +216,6 @@ void vga_init(void)
 	ay38912_setPort(1);
 
 	vga_select_rom(0);
-	vga_clear();
+	_vga_clear();
 	vga_set_cursor(1);
 }

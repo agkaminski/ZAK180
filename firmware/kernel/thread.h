@@ -43,6 +43,8 @@ void _thread_on_tick(struct cpu_context *context);
 
 int thread_create(struct thread *thread, uint8_t priority, void (*entry)(void * arg), void *arg);
 
+void thread_start(void);
+
 void thread_init(void);
 
 #endif

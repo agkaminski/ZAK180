@@ -67,7 +67,7 @@ reset:
 			ld a, #0xEF - 0x0F
 			out0 (#CBR), a
 
-			; Setup stack
+			; Setup inital stack
 			ld sp, #0x0000
 
 			; Init .bss and .data
@@ -87,9 +87,8 @@ reset:
 
 			call _main
 
-			; We shouldn't get here
-			di
-			halt
+postmain:	halt
+			jr postmain
 
 .org 0x0100
 ivt:
@@ -113,19 +112,29 @@ ivt:
 
 			ld hl, #0
 			add hl, sp
+
 			in0 a, (#CBAR)
 			ld c, a
 			ld b, #0
-			push bc
 			in0 a, (#BBR)
-			ld c, a
+			ld e, a
 			in0 a, (#CBR)
-			ld b, a
-			push bc
-			push hl
+			ld d, a
+
+			push bc ; layout
+			push de ; mmu
+			push hl ; sp
+
+			push bc ; nlayout
+			push de ; nmmu
+			push hl ; nsp
+
+			; Use kernel memory layout on kernel enter
+			ld a, #0xFE
+			out0 (#CBAR), a
 
 			; Pass a pointer to the context in hl
-			ld bc, #6
+			ld bc, #-12
 			add hl, bc
 .endm
 
@@ -133,11 +142,11 @@ ivt:
 			pop hl
 			pop bc
 			pop de
+
 			ld a, b
 			out0 (#CBR), a
 			ld a, c
 			out0 (#BBR), a
-			pop bc
 			ld a, e
 			out0 (#CBAR), a
 			ld sp, hl

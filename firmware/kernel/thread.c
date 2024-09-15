@@ -22,7 +22,7 @@ static struct {
 
 	struct thread idle;
 
-	int8_t schedule;
+	volatile int8_t schedule;
 } common;
 
 static void _thread_enqueue(struct thread **queue, struct thread *thread, ktime_t wakeup)
@@ -94,24 +94,26 @@ static void _thread_dequeue(struct thread **queue, struct thread *thread)
 
 static void _threads_add_ready(struct thread *thread)
 {
-	struct thread *it = common.ready[common.current->priority];
-
-	while (it != NULL && it->qnext != NULL) {
-		it = it->qnext;
-	}
-
-	if (it == NULL) {
-		common.ready[common.current->priority] = thread;
+	if (common.ready[thread->priority] == NULL) {
+		common.ready[thread->priority] = thread;
 	}
 	else {
+		struct thread *it = common.ready[thread->priority];
+		while (it->qnext != NULL) {
+			it = it->qnext;
+		}
+
 		it->qnext = thread;
 	}
 
 	thread->qnext = NULL;
+	thread->state = THREAD_STATE_READY;
 }
 
 static void _thread_schedule(struct cpu_context *context)
 {
+	struct thread *prev = common.current;
+
 	if (!common.schedule) {
 		return;
 	}
@@ -119,7 +121,6 @@ static void _thread_schedule(struct cpu_context *context)
 	/* Put current thread */
 	if (common.current != NULL) {
 		common.current->context = context;
-		common.current->state = THREAD_STATE_READY;
 
 		_threads_add_ready(common.current);
 	}
@@ -135,17 +136,23 @@ static void _thread_schedule(struct cpu_context *context)
 		}
 	}
 
-	/* Some thread will be always ready, skip NULL check */
+	if (selected == NULL) {
+		_HALT;
+	}
+
+	common.current = selected;
 	selected->state = THREAD_STATE_ACTIVE;
 
-	/* Map selected thread stack space into the scratch page */
-	uint8_t *scratch = mmu_map_scratch(selected->stack_page, NULL);
-	struct cpu_context *selctx = (void *)((uint8_t *)selected->context - 0x1000);
+	if (selected != prev) {
+		/* Map selected thread stack space into the scratch page */
+		uint8_t *scratch = mmu_map_scratch(selected->stack_page, NULL);
+		struct cpu_context *selctx = (void *)((uint8_t *)selected->context - PAGE_SIZE);
 
-	/* Switch context */
-	context->sp = selctx->sp;
-	context->mmu = selctx->mmu;
-	context->layout = selctx->layout;
+		/* Switch context */
+		context->nsp = selctx->sp;
+		context->nmmu = selctx->mmu;
+		context->nlayout = selctx->layout;
+	}
 }
 
 void _thread_on_tick(struct cpu_context *context)
@@ -181,10 +188,10 @@ static void thread_context_create(struct thread *thread, uint16_t entry, void *a
 
 	/* TODO set mmu layout according to the process */
 	tctx->layout = CONTEXT_LAYOUT_KERNEL;
-	tctx->mmu = (uint16_t)thread->stack_page << 8;
-	tctx->sp = 0;
+	tctx->mmu = (uint16_t)(thread->stack_page - (tctx->layout >> 4)) << 8;
 
-	thread->context = (void *)((uint8_t *)0 - sizeof(struct cpu_context));
+	thread->context = (void *)((uint8_t *)tctx + PAGE_SIZE);
+	tctx->sp = (uint16_t)((uint8_t *)thread->context + 12);
 }
 
 static void thread_idle(void *arg)
@@ -192,7 +199,7 @@ static void thread_idle(void *arg)
 	(void)arg;
 
 	while (1) {
-		__asm halt __endasm;
+		_HALT;
 	}
 }
 
@@ -201,7 +208,6 @@ int thread_create(struct thread *thread, uint8_t priority, void (*entry)(void * 
 	thread->qnext = NULL;
 	thread->id = ++common.idcntr;
 	thread->refs = 1;
-	thread->state = THREAD_STATE_READY;
 	thread->priority = priority;
 	thread->exit = 0;
 	thread->wakeup = 0;
@@ -224,8 +230,12 @@ int thread_create(struct thread *thread, uint8_t priority, void (*entry)(void * 
 	return 0;
 }
 
+void thread_start(void)
+{
+	common.schedule = 1;
+}
+
 void thread_init(void)
 {
 	thread_create(&common.idle, THREAD_PRIORITY_NO - 1, thread_idle, NULL);
-	common.schedule = 1;
 }
