@@ -6,8 +6,8 @@
 
 #include <stdint.h>
 
-#include "page.h"
-#include "../proc/lock.h"
+#include "mem/page.h"
+#include "proc/lock.h"
 
 struct page_element {
 	struct page_element *next;

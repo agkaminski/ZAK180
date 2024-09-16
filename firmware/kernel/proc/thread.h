@@ -10,7 +10,7 @@
 #include <stdint.h>
 
 #include "timer.h"
-#include "../hal/cpu.h"
+#include "hal/cpu.h"
 
 #define THREAD_PRIORITY_NO 8
 

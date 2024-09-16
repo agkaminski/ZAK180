@@ -9,7 +9,7 @@
 
 #include <stdint.h>
 
-#include "thread.h"
+#include "proc/thread.h"
 
 struct lock {
 	struct thread *queue;

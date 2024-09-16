@@ -6,8 +6,7 @@ DATA = 0xC000
 GHASH = "$(shell git describe --always --dirty)"
 DATE = "$(shell date +"%X %x")"
 CFLAGS = -m${CPU} -DVERSION='${GHASH}' -DDATE='${DATE}' \
-  -L../driver -L../filesystem \
-  -I. -I../driver \
+  -L../driver -L../filesystem -I.. \
   --opt-code-size --max-allocs-per-node 10000
 LDFLAGS = --code-loc ${CODE} --data-loc ${DATA} --no-std-crt0
 

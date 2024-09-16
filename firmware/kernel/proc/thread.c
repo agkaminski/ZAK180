@@ -6,13 +6,13 @@
 
 #include <stddef.h>
 
-#include "thread.h"
+#include "proc/thread.h"
 
-#include "../mem/page.h"
+#include "mem/page.h"
 
-#include "../driver/critical.h"
-#include "../driver/mmu.h"
-#include "../lib/errno.h"
+#include "driver/critical.h"
+#include "driver/mmu.h"
+#include "lib/errno.h"
 
 #define LIST_ADD(queue, member, next, prev) \
 	do { \

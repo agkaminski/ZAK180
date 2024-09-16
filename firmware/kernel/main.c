@@ -12,8 +12,8 @@
 #include "proc/timer.h"
 #include "proc/thread.h"
 
-#include "../driver/uart.h"
-#include "../driver/vga.h"
+#include "driver/uart.h"
+#include "driver/vga.h"
 
 static struct {
 	int8_t started;

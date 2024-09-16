@@ -7,11 +7,11 @@
 #include <string.h>
 #include <stdio.h>
 
-#include "../driver/uart.h"
-#include "../driver/vga.h"
-#include "../driver/floppy.h"
-#include "../filesystem/fat12.h"
-#include "../driver/mmu.h"
+#include "driver/uart.h"
+#include "driver/vga.h"
+#include "driver/floppy.h"
+#include "filesystem/fat12.h"
+#include "driver/mmu.h"
 
 #define SCRATCH_SIZE (8 * 1024)
 

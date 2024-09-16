@@ -7,9 +7,9 @@
 #include <stddef.h>
 
 #include "thread.h"
-#include "lock.h"
+#include "proc/lock.h"
 
-#include "../../lib/errno.h"
+#include "lib/errno.h"
 
 static int _lock_try(struct lock *lock)
 {
