@@ -11,8 +11,10 @@ CFLAGS = -m${CPU} -DVERSION='${GHASH}' -DDATE='${DATE}' \
   --opt-code-size --max-allocs-per-node 10000
 LDFLAGS = --code-loc ${CODE} --data-loc ${DATA} --no-std-crt0
 
-SRC = main.c memory.c timer.c thread.c lock.c
-OBJ = crt0.rel $(SRC:.c=.rel)
+SRC = main.c
+SRC += mem/page.c
+SRC += proc/timer.c proc/thread.c proc/lock.c
+OBJ = hal/crt0.rel $(SRC:.c=.rel)
 DRIVERS = uart.lib floppy.lib ay38912.lib mmu.lib vga.lib prt.lib
 FILESYSTEMS = fat12.lib
 LIB = ${DRIVERS} ${FILESYSTEMS}
@@ -29,7 +31,7 @@ ${TARGET}.hex: ${OBJ}
 	@sdcc -o ${TARGET}.hex -l ${LIB} ${CFLAGS} ${LDFLAGS} ${OBJ}
 
 %.rel: %.c
-	sdcc ${CFLAGS} -c "$<"
+	sdcc ${CFLAGS} -o "$@" -c "$<"
 
 %.rel: %.s
 	@sdasz80 -l -o -s "$<"

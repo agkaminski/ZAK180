@@ -6,8 +6,8 @@
 
 #include "timer.h"
 #include "thread.h"
-#include "../driver/prt.h"
-#include "../driver/critical.h"
+#include "../../driver/prt.h"
+#include "../../driver/critical.h"
 
 static struct {
 	ktime_t jiffies;

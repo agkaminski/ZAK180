@@ -4,31 +4,31 @@
  * See LICENSE.md
  */
 
-#ifndef KERNEL_MEMORY_H_
-#define KERNEL_MEMORY_H_
+#ifndef KERNEL_PAGE_H_
+#define KERNEL_PAGE_H_
 
 #include <stddef.h>
 #include <stdint.h>
 
-#define MEMORY_OWNER_CACHE  ((void *)-1)
-#define MEMORY_OWNER_KERNEL NULL
+#define PAGE_OWNER_CACHE  ((void *)-1)
+#define PAGE_OWNER_KERNEL NULL
 
-#define MEMORY_PAGE_SIZE 4096
+#define PAGE_SIZE 4096
 
-typedef void (*memory_page_release)(void *addr);
+typedef void (*page_release)(void *addr);
 
 /* Allocates one page of cache memory, "release_callback" is
  * called when the kernel need to reaquire the memory to
  * prepare owner to free the page */
-uint8_t memory_cache_alloc(memory_page_release release_callback);
+uint8_t page_cache_alloc(page_release release_callback);
 
 /* Returns continuous memory starting at return value of "pages" length */
 /* TODO owner is a process placeholder */
-uint8_t memory_alloc(void *owner, uint8_t pages);
+uint8_t page_alloc(void *owner, uint8_t pages);
 
 /* Frees the memory starting at "page" of size previously allocated */
-void memory_free(uint8_t page, uint8_t pages);
+void page_free(uint8_t page, uint8_t pages);
 
-void memory_init(uint8_t start, uint8_t pages);
+void page_init(uint8_t start, uint8_t pages);
 
 #endif

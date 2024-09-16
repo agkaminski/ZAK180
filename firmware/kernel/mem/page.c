@@ -6,29 +6,29 @@
 
 #include <stdint.h>
 
-#include "memory.h"
-#include "lock.h"
+#include "page.h"
+#include "../proc/lock.h"
 
-struct memory_element {
-	struct memory_element *next;
+struct page_element {
+	struct page_element *next;
 	void *owner;
-	memory_page_release callback;
+	page_release callback;
 	uint8_t start;
 	uint8_t length;
 };
 
 static struct {
-	struct memory_element element_pool[32];
+	struct page_element element_pool[32];
 	uint32_t used;
-	struct memory_element *free;
-	struct memory_element *alloc;
-	struct memory_element *cache;
+	struct page_element *free;
+	struct page_element *alloc;
+	struct page_element *cache;
 	struct lock lock;
 } common;
 
-static struct memory_element *page_element_alloc(void)
+static struct page_element *page_element_alloc(void)
 {
-	struct memory_element *element = NULL;
+	struct page_element *element = NULL;
 
 	for (uint8_t i = 0; i < sizeof(common.element_pool) / sizeof(*common.element_pool); ++i) {
 		if (!(common.used & (1 << i))) {
@@ -41,7 +41,7 @@ static struct memory_element *page_element_alloc(void)
 	return element;
 }
 
-static void memory_element_free(struct memory_element *element)
+static void page_element_free(struct page_element *element)
 {
 	for (uint8_t i = 0; i < sizeof(common.element_pool) / sizeof(*common.element_pool); ++i) {
 		if (element == &common.element_pool[i]) {
@@ -51,7 +51,7 @@ static void memory_element_free(struct memory_element *element)
 	}
 }
 
-static int memory_element_merge(struct memory_element *dest, struct memory_element *victim)
+static int page_element_merge(struct page_element *dest, struct page_element *victim)
 {
 	if (dest == NULL || victim == NULL) {
 		return -1;
@@ -60,16 +60,16 @@ static int memory_element_merge(struct memory_element *dest, struct memory_eleme
 	if ((dest->start + dest->length == victim->start) && (dest->owner == victim->owner)) {
 		dest->length += victim->length;
 		dest->next = victim->next;
-		memory_element_free(victim);
+		page_element_free(victim);
 		return 0;
 	}
 
 	return -1;
 }
 
-static void memory_element_attach(struct memory_element **list, struct memory_element *element)
+static void page_element_attach(struct page_element **list, struct page_element *element)
 {
-	struct memory_element *it = *list;
+	struct page_element *it = *list;
 
 	while (it != NULL && element->start < it->start) {
 		it = it->next;
@@ -84,17 +84,17 @@ static void memory_element_attach(struct memory_element **list, struct memory_el
 		*list = element;
 	}
 
-	if (memory_element_merge(it, element) == 0) {
-		memory_element_merge(it, it->next);
+	if (page_element_merge(it, element) == 0) {
+		page_element_merge(it, it->next);
 	}
 	else {
-		memory_element_merge(element, element->next);
+		page_element_merge(element, element->next);
 	}
 }
 
-static void memory_element_detach(struct memory_element **list, struct memory_element *element)
+static void page_element_detach(struct page_element **list, struct page_element *element)
 {
-	struct memory_element *it = *list, *prev = NULL;
+	struct page_element *it = *list, *prev = NULL;
 
 	while (it != NULL && it != element) {
 		prev = it;
@@ -111,9 +111,9 @@ static void memory_element_detach(struct memory_element **list, struct memory_el
 	}
 }
 
-static struct memory_element *memory_element_split(struct memory_element *victim, uint8_t pages)
+static struct page_element *page_element_split(struct page_element *victim, uint8_t pages)
 {
-	struct memory_element *newborn = page_element_alloc();
+	struct page_element *newborn = page_element_alloc();
 	if (newborn == NULL) {
 		return NULL;
 	}
@@ -131,11 +131,11 @@ static struct memory_element *memory_element_split(struct memory_element *victim
 	return newborn;
 }
 
-static uint8_t memory_alloc_callback(void *owner, uint8_t pages, memory_page_release callback)
+static uint8_t page_alloc_callback(void *owner, uint8_t pages, page_release callback)
 {
 	lock_lock(&common.lock);
 
-	struct memory_element *curr = common.free, *prev;
+	struct page_element *curr = common.free, *prev;
 	uint8_t page = 0;
 
 	while (curr != NULL && curr->length < pages) {
@@ -145,15 +145,15 @@ static uint8_t memory_alloc_callback(void *owner, uint8_t pages, memory_page_rel
 
 	if (curr != NULL) {
 		if (curr->length == pages) {
-			memory_element_detach(&common.free, curr);
+			page_element_detach(&common.free, curr);
 		}
 		else {
-			curr = memory_element_split(curr, pages);
+			curr = page_element_split(curr, pages);
 		}
 		curr->callback = callback;
 		curr->owner = owner;
 		page = curr->start;
-		memory_element_attach(&common.alloc, curr);
+		page_element_attach(&common.alloc, curr);
 	}
 
 	lock_unlock(&common.lock);
@@ -161,16 +161,16 @@ static uint8_t memory_alloc_callback(void *owner, uint8_t pages, memory_page_rel
 	return page;
 }
 
-uint8_t memory_alloc(void *owner, uint8_t pages)
+uint8_t page_alloc(void *owner, uint8_t pages)
 {
-	return memory_alloc_callback(owner, pages, NULL);
+	return page_alloc_callback(owner, pages, NULL);
 }
 
-void memory_free(uint8_t page, uint8_t pages)
+void page_free(uint8_t page, uint8_t pages)
 {
 	lock_lock(&common.lock);
 
-	struct memory_element *curr = common.alloc;
+	struct page_element *curr = common.alloc;
 
 	while (pages) {
 		while (curr != NULL) {
@@ -184,22 +184,22 @@ void memory_free(uint8_t page, uint8_t pages)
 		if (curr != NULL) {
 			if (curr->start == page) {
 				if (curr->length > pages) {
-					curr = memory_element_split(curr, pages);
+					curr = page_element_split(curr, pages);
 				}
 				else {
-					memory_element_detach(&common.alloc, curr);
+					page_element_detach(&common.alloc, curr);
 				}
 			}
 			else {
-				struct memory_element *t = memory_element_split(curr, page - curr->start);
+				struct page_element *t = page_element_split(curr, page - curr->start);
 
 				/* Need to detach curr to avoid merge in attach */
-				memory_element_detach(&common.alloc, curr);
-				memory_element_attach(&common.alloc, t);
+				page_element_detach(&common.alloc, curr);
+				page_element_attach(&common.alloc, t);
 
 				if (curr->length > pages) {
-					t = memory_element_split(curr, curr->length - pages);
-					memory_element_attach(&common.alloc, curr);
+					t = page_element_split(curr, curr->length - pages);
+					page_element_attach(&common.alloc, curr);
 					curr = t;
 				}
 			}
@@ -207,7 +207,7 @@ void memory_free(uint8_t page, uint8_t pages)
 			page += curr->length;
 			pages -= curr->length;
 
-			memory_element_attach(&common.free, curr);
+			page_element_attach(&common.free, curr);
 		}
 		else {
 			break;
@@ -217,21 +217,21 @@ void memory_free(uint8_t page, uint8_t pages)
 	lock_unlock(&common.lock);
 }
 
-uint8_t memory_cache_alloc(memory_page_release release_callback)
+uint8_t page_cache_alloc(page_release release_callback)
 {
-	return memory_alloc_callback(MEMORY_OWNER_CACHE, 1, release_callback);
+	return page_alloc_callback(PAGE_OWNER_CACHE, 1, release_callback);
 }
 
-void memory_init(uint8_t start, uint8_t pages)
+void page_init(uint8_t start, uint8_t pages)
 {
 	/* No error check, this is certain to be ok. */
-	struct memory_element *element = page_element_alloc();
+	struct page_element *element = page_element_alloc();
 
 	element->start = start;
 	element->length = pages;
 	element->owner = NULL;
 
-	memory_element_attach(&common.free, element);
+	page_element_attach(&common.free, element);
 
 	lock_init(&common.lock);
 }

@@ -7,7 +7,8 @@
 #include <stddef.h>
 
 #include "thread.h"
-#include "memory.h"
+
+#include "../mem/page.h"
 
 #include "../driver/critical.h"
 #include "../driver/mmu.h"
@@ -293,7 +294,7 @@ int thread_create(struct thread *thread, uint8_t priority, void (*entry)(void * 
 	thread->exit = 0;
 	thread->wakeup = 0;
 
-	thread->stack_page = memory_alloc(NULL, 1);
+	thread->stack_page = page_alloc(NULL, 1);
 	if (thread->stack_page == 0) {
 		return -ENOMEM;
 	}

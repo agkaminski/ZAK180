@@ -9,7 +9,7 @@
 
 #include <stdint.h>
 
-#include "../driver/cpu.h"
+#include "../hal/cpu.h"
 
 #define SYSTICK_INTERVAL 10 /* ms */
 

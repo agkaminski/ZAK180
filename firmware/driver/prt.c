@@ -8,8 +8,9 @@
 #include <z180/z180.h>
 
 #include "prt.h"
-#include "cpu.h"
 #include "critical.h"
+
+#define CPU_FREQ (12288000UL / 2)
 
 uint16_t _prt0_timer_get(void)
 {

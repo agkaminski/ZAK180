@@ -7,8 +7,6 @@
 #ifndef DRIVER_CPU_H_
 #define DRIVER_CPU_H_
 
-#define CPU_FREQ (12288000UL / 2)
-
 #define _EI __asm ei __endasm
 #define _DI __asm di __endasm
 #define _HALT __asm halt __endasm

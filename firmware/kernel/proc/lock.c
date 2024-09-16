@@ -9,7 +9,7 @@
 #include "thread.h"
 #include "lock.h"
 
-#include "../lib/errno.h"
+#include "../../lib/errno.h"
 
 static int _lock_try(struct lock *lock)
 {
@@ -44,7 +44,7 @@ void lock_unlock(struct lock *lock)
 {
 	thread_critical_start();
 	lock->locked = 0;
-	_thread_signal_yield(lock->queue);
+	_thread_signal_yield(&lock->queue);
 }
 
 void lock_init(struct lock *lock)

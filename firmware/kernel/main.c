@@ -8,9 +8,9 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "memory.h"
-#include "timer.h"
-#include "thread.h"
+#include "mem/page.h"
+#include "proc/timer.h"
+#include "proc/thread.h"
 
 #include "../driver/uart.h"
 #include "../driver/vga.h"
@@ -66,7 +66,7 @@ int main(void)
 
 	/* Start: 64 KB reserved for the kernel
 	 * End: VGA starts at @0xFE000 */
-	memory_init(16, 238);
+	page_init(16, 238);
 	timer_init();
 	thread_init();
 
