@@ -162,7 +162,7 @@ void vga_putchar(char c)
 {
 	critical_start();
 	if (common.cursor.state) {
-		vga_set(common.cursor.prev);
+		_vga_set(common.cursor.prev);
 		common.cursor.state = 0;
 	}
 	common.cursor.counter = 0;
