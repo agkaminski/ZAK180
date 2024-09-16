@@ -160,13 +160,13 @@ static void vga_new_line(void)
 
 void vga_putchar(char c)
 {
-	_CRITICAL_START;
+	//_CRITICAL_START;
 	if (common.cursor.state) {
 		vga_set(common.cursor.prev);
 		common.cursor.state = 0;
 	}
 	common.cursor.counter = 0;
-	_CRITICAL_END;
+	//_CRITICAL_END;
 
 	switch (c) {
 		/* TODO add terminal control, tab, etc. */

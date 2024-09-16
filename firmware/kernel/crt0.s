@@ -197,6 +197,8 @@ _irq_uart1:
 
 _thread_yield:
 			di
+			; default return value
+			ld de, #0
 			SAVE
 			call __thread_schedule
 			RESTORE

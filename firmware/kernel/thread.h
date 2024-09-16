@@ -47,11 +47,21 @@ struct thread {
 	uint8_t stack_page;
 };
 
-void thread_yield(void);
+void thread_critical_start(void);
 
-void thread_sleep(ktime_t wakeup);
+void thread_critical_end(void);
 
-void thread_sleep_relative(ktime_t sleep);
+int thread_yield(void);
+
+int thread_sleep(ktime_t wakeup);
+
+int _thread_wait(struct thread **queue, ktime_t wakeup);
+
+int _thread_signal(struct thread **queue);
+
+int _thread_broadcast(struct thread **queue);
+
+int thread_sleep_relative(ktime_t sleep);
 
 void _thread_on_tick(struct cpu_context *context);
 

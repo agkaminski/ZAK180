@@ -8,6 +8,7 @@
 
 #include "thread.h"
 #include "memory.h"
+
 #include "../driver/critical.h"
 #include "../driver/mmu.h"
 #include "../lib/errno.h"
@@ -57,7 +58,7 @@ static struct {
 	volatile uint8_t critical;
 } common;
 
-static void thread_critical_start(void)
+void thread_critical_start(void)
 {
 	if (common.started) {
 		_DI;
@@ -65,10 +66,12 @@ static void thread_critical_start(void)
 	}
 }
 
-static void thread_critical_end(void)
+void thread_critical_end(void)
 {
-	if (--common.critical == 0) {
-		_EI;
+	if (common.started) {
+		if (--common.critical == 0) {
+			_EI;
+		}
 	}
 }
 
@@ -78,19 +81,6 @@ static void _thread_sleeping_enqueue(ktime_t wakeup)
 
 	common.current->wakeup = wakeup;
 	common.current->state = THREAD_STATE_SLEEP;
-}
-
-static void _thread_enqueue(struct thread **queue, ktime_t wakeup)
-{
-	LIST_ADD(queue, common.current, qnext, qprev);
-
-	common.current->wakeup = wakeup;
-	common.current->state = THREAD_STATE_SLEEP;
-	common.current->qwait = queue;
-
-	if (wakeup) {
-		_thread_sleeping_enqueue(wakeup);
-	}
 }
 
 static void _threads_add_ready(struct thread *thread)
@@ -160,28 +150,77 @@ void _thread_schedule(struct cpu_context *context)
 	}
 }
 
+static void _thread_set_return(struct thread *thread, int value)
+{
+	uint8_t *scratch = mmu_map_scratch(thread->stack_page, NULL);
+	struct cpu_context *tctx = (void *)((uint8_t *)thread->context - PAGE_SIZE);
+	tctx->de = (uint16_t)value;
+}
+
 void _thread_on_tick(struct cpu_context *context)
 {
 	ktime_t now = timer_get();
 
 	while (common.sleeping != NULL && common.sleeping->wakeup <= now) {
+		_thread_set_return(common.sleeping, -ETIME);
 		_threads_add_ready(common.sleeping);
 	}
 
 	_thread_schedule(context);
 }
 
-void thread_sleep(ktime_t wakeup)
+int thread_sleep(ktime_t wakeup)
 {
 	_CRITICAL_START;
 	_thread_sleeping_enqueue(wakeup);
-	thread_yield();
+	return thread_yield();
 }
 
-void thread_sleep_relative(ktime_t sleep)
+int thread_sleep_relative(ktime_t sleep)
 {
 	_CRITICAL_START;
-	thread_sleep(timer_get() + sleep);
+	return thread_sleep(timer_get() + sleep);
+}
+
+int _thread_wait(struct thread **queue, ktime_t wakeup)
+{
+	LIST_ADD(queue, common.current, qnext, qprev);
+
+	common.current->wakeup = wakeup;
+	common.current->state = THREAD_STATE_SLEEP;
+	common.current->qwait = queue;
+
+	if (wakeup) {
+		_thread_sleeping_enqueue(wakeup);
+	}
+
+	--common.critical;
+	int ret = thread_yield();
+	thread_critical_start();
+
+	return ret;
+}
+
+int _thread_signal(struct thread **queue)
+{
+	if (*queue != NULL) {
+		_thread_dequeue(*queue);
+		return 1;
+	}
+
+	return 0;
+}
+
+int _thread_broadcast(struct thread **queue)
+{
+	int ret = 0;
+
+	while (*queue != NULL) {
+		_thread_dequeue(*queue);
+		ret = 1;
+	}
+
+	return ret;
 }
 
 static void thread_context_create(struct thread *thread, uint16_t entry, void *arg)
@@ -226,9 +265,7 @@ int thread_create(struct thread *thread, uint8_t priority, void (*entry)(void * 
 	thread->exit = 0;
 	thread->wakeup = 0;
 
-	thread_critical_start();
 	thread->stack_page = memory_alloc(NULL, 1);
-	thread_critical_end();
 	if (thread->stack_page == 0) {
 		return -ENOMEM;
 	}

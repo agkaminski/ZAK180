@@ -7,6 +7,7 @@
 #include <stdint.h>
 
 #include "memory.h"
+#include "lock.h"
 
 struct memory_element {
 	struct memory_element *next;
@@ -22,6 +23,7 @@ static struct {
 	struct memory_element *free;
 	struct memory_element *alloc;
 	struct memory_element *cache;
+	struct lock lock;
 } common;
 
 static struct memory_element *memory_element_alloc(void)
@@ -131,6 +133,8 @@ static struct memory_element *memory_element_split(struct memory_element *victim
 
 static uint8_t memory_alloc_callback(void *owner, uint8_t pages, memory_page_release callback)
 {
+	lock_lock(&common.lock);
+
 	struct memory_element *curr = common.free, *prev;
 	uint8_t page = 0;
 
@@ -152,6 +156,8 @@ static uint8_t memory_alloc_callback(void *owner, uint8_t pages, memory_page_rel
 		memory_element_attach(&common.alloc, curr);
 	}
 
+	lock_unlock(&common.lock);
+
 	return page;
 }
 
@@ -162,6 +168,8 @@ uint8_t memory_alloc(void *owner, uint8_t pages)
 
 void memory_free(uint8_t page, uint8_t pages)
 {
+	lock_lock(&common.lock);
+
 	struct memory_element *curr = common.alloc;
 
 	while (pages) {
@@ -205,6 +213,8 @@ void memory_free(uint8_t page, uint8_t pages)
 			break;
 		}
 	}
+
+	lock_unlock(&common.lock);
 }
 
 uint8_t memory_cache_alloc(memory_page_release release_callback)
@@ -222,4 +232,6 @@ void memory_init(uint8_t start, uint8_t pages)
 	element->owner = NULL;
 
 	memory_element_attach(&common.free, element);
+
+	lock_init(&common.lock);
 }
