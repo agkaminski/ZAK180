@@ -12,6 +12,37 @@
 #include "../driver/mmu.h"
 #include "../lib/errno.h"
 
+#define LIST_ADD(queue, member, next, prev) \
+	do { \
+		if ((*(queue)) == NULL) { \
+			(*(queue)) = (member); \
+			(member)->next = (member); \
+			(member)->prev = (member); \
+		} \
+		else { \
+			(member)->next = (*(queue)); \
+			(member)->prev = (*(queue))->prev; \
+			(*(queue))->prev->next = (member); \
+			(*(queue))->prev = (member); \
+		} \
+	} while (0)
+
+#define LIST_REMOVE(queue, member, next, prev) \
+	do { \
+		if ((member)->next == (member)) { \
+			(*(queue)) = NULL; \
+		} \
+		else { \
+			if ((*(queue)) == (member)) { \
+				(*(queue)) = (member)->next; \
+			} \
+			(member)->prev->next = (member)->next; \
+			(member)->next->prev = (member)->prev; \
+		} \
+		(member)->next = NULL; \
+		(member)->prev = NULL; \
+	} while (0)
+
 static struct {
 	struct thread *threads;
 	struct thread *sleeping;
@@ -22,99 +53,72 @@ static struct {
 
 	struct thread idle;
 
-	volatile int8_t schedule;
+	volatile int8_t started;
+	volatile uint8_t critical;
 } common;
 
-static void _thread_enqueue(struct thread **queue, struct thread *thread, ktime_t wakeup)
+static void thread_critical_start(void)
 {
-	struct thread *curr = *queue, *prev = NULL;
-
-	thread->wakeup = wakeup;
-	thread->state = THREAD_STATE_SLEEP;
-
-	while (curr != NULL) {
-		if (wakeup) {
-			if (wakeup > curr->wakeup) {
-				break;
-			}
-		}
-		prev = curr;
-		curr = curr->qnext;
-	}
-
-	if (curr != NULL) {
-		thread->qnext = curr->qnext;
-		curr->qnext = thread;
-	}
-	else if (prev != NULL) {
-		thread->qnext = NULL;
-		prev->qnext = thread;
-	}
-	else {
-		*queue = thread;
-		thread->qnext = NULL;
+	if (common.started) {
+		_DI;
+		++common.critical;
 	}
 }
 
-static void _thread_dequeue(struct thread **queue, struct thread *thread)
+static void thread_critical_end(void)
 {
-	if (*queue == thread) {
-		*queue = thread->qnext;
+	if (--common.critical == 0) {
+		_EI;
 	}
-	else {
-		struct thread *curr = *queue;
+}
 
-		while (curr != NULL && curr->qnext != thread) {
-			curr = curr->qnext;
-		}
+static void _thread_sleeping_enqueue(ktime_t wakeup)
+{
+	LIST_ADD(&common.sleeping, common.current, snext, sprev);
 
-		if (curr == NULL) {
-			return;
-		}
+	common.current->wakeup = wakeup;
+	common.current->state = THREAD_STATE_SLEEP;
+}
 
-		curr->qnext = thread->qnext;
-	}
+static void _thread_enqueue(struct thread **queue, ktime_t wakeup)
+{
+	LIST_ADD(queue, common.current, qnext, qprev);
 
-	thread->qnext = NULL;
-	thread->wakeup = 0;
-	thread->state = THREAD_STATE_READY;
+	common.current->wakeup = wakeup;
+	common.current->state = THREAD_STATE_SLEEP;
+	common.current->qwait = queue;
 
-	if (common.ready[thread->priority] == NULL) {
-		common.ready[thread->priority] = thread;
-	}
-	else {
-		struct thread *curr = common.ready[thread->priority];
-		while (curr->qnext != NULL) {
-			curr = curr->qnext;
-		}
-
-		curr->qnext = thread;
+	if (wakeup) {
+		_thread_sleeping_enqueue(wakeup);
 	}
 }
 
 static void _threads_add_ready(struct thread *thread)
 {
-	if (common.ready[thread->priority] == NULL) {
-		common.ready[thread->priority] = thread;
-	}
-	else {
-		struct thread *it = common.ready[thread->priority];
-		while (it->qnext != NULL) {
-			it = it->qnext;
-		}
+	LIST_ADD(&common.ready[thread->priority], thread, qnext, qprev);
 
-		it->qnext = thread;
-	}
-
-	thread->qnext = NULL;
 	thread->state = THREAD_STATE_READY;
+
+	if (thread->wakeup && common.sleeping != NULL) {
+		LIST_REMOVE(&common.sleeping, thread, snext, sprev);
+
+		thread->wakeup = 0;
+	}
 }
 
-static void _thread_schedule(struct cpu_context *context)
+static void _thread_dequeue(struct thread *thread)
+{
+	if (thread->qwait != NULL) {
+		LIST_REMOVE(thread->qwait, thread, qnext, qprev);
+		_threads_add_ready(thread);
+	}
+}
+
+void _thread_schedule(struct cpu_context *context)
 {
 	struct thread *prev = common.current;
 
-	if (!common.schedule) {
+	if (!common.started) {
 		return;
 	}
 
@@ -122,7 +126,9 @@ static void _thread_schedule(struct cpu_context *context)
 	if (common.current != NULL) {
 		common.current->context = context;
 
-		_threads_add_ready(common.current);
+		if (common.current->state == THREAD_STATE_ACTIVE) {
+			_threads_add_ready(common.current);
+		}
 	}
 
 	/* Select new thread */
@@ -130,8 +136,7 @@ static void _thread_schedule(struct cpu_context *context)
 	for (uint8_t priority = 0; priority < THREAD_PRIORITY_NO; ++priority) {
 		if (common.ready[priority] != NULL) {
 			selected = common.ready[priority];
-			common.ready[priority] = selected->qnext;
-			selected->qnext = NULL;
+			LIST_REMOVE(&common.ready[priority], selected, qnext, qprev);
 			break;
 		}
 	}
@@ -159,18 +164,24 @@ void _thread_on_tick(struct cpu_context *context)
 {
 	ktime_t now = timer_get();
 
-	struct thread *it = common.sleeping;
-	while (it != NULL) {
-		if (it->wakeup >= now) {
-			_thread_dequeue(&common.sleeping, it);
-			_threads_add_ready(it);
-		}
-		else {
-			break;
-		}
+	while (common.sleeping != NULL && common.sleeping->wakeup <= now) {
+		_threads_add_ready(common.sleeping);
 	}
 
 	_thread_schedule(context);
+}
+
+void thread_sleep(ktime_t wakeup)
+{
+	_CRITICAL_START;
+	_thread_sleeping_enqueue(wakeup);
+	thread_yield();
+}
+
+void thread_sleep_relative(ktime_t sleep)
+{
+	_CRITICAL_START;
+	thread_sleep(timer_get() + sleep);
 }
 
 static void thread_context_create(struct thread *thread, uint16_t entry, void *arg)
@@ -205,34 +216,35 @@ static void thread_idle(void *arg)
 
 int thread_create(struct thread *thread, uint8_t priority, void (*entry)(void * arg), void *arg)
 {
+	thread->snext = NULL;
+	thread->sprev = NULL;
 	thread->qnext = NULL;
+	thread->qwait = NULL;
 	thread->id = ++common.idcntr;
 	thread->refs = 1;
 	thread->priority = priority;
 	thread->exit = 0;
 	thread->wakeup = 0;
 
+	thread_critical_start();
 	thread->stack_page = memory_alloc(NULL, 1);
+	thread_critical_end();
 	if (thread->stack_page == 0) {
 		return -ENOMEM;
 	}
 
 	thread_context_create(thread, (uint16_t)entry, arg);
 
-	if (common.schedule) {
-		_CRITICAL_START;
-	}
+	thread_critical_start();
 	_threads_add_ready(thread);
-	if (common.schedule) {
-		_CRITICAL_END;
-	}
+	thread_critical_end();
 
 	return 0;
 }
 
 void thread_start(void)
 {
-	common.schedule = 1;
+	common.started = 1;
 }
 
 void thread_init(void)

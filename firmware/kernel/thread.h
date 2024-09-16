@@ -23,7 +23,15 @@
 #define CONTEXT_LAYOUT_USER   0xF1
 
 struct thread {
+	/* Wait queue or ready list */
 	struct thread *qnext;
+	struct thread *qprev;
+
+	/* Sleeping list */
+	struct thread *snext;
+	struct thread *sprev;
+
+	struct thread **qwait;
 
 	struct thread *idnext;
 	uint8_t id;
@@ -38,6 +46,12 @@ struct thread {
 	struct cpu_context *context;
 	uint8_t stack_page;
 };
+
+void thread_yield(void);
+
+void thread_sleep(ktime_t wakeup);
+
+void thread_sleep_relative(ktime_t sleep);
 
 void _thread_on_tick(struct cpu_context *context);
 

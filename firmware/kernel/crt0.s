@@ -10,6 +10,8 @@
 .globl _uart0_irq_handler
 .globl _uart1_irq_handler
 .globl _timer_irq_handler
+.globl __thread_schedule
+.globl _thread_yield
 
 .z180
 
@@ -29,8 +31,6 @@ TMDR0H = 0x000D   ; Timer Data Register Channel 0H
 
 ITC = 0x0034      ; INT/TRAP Control Register
 
-; Start code has to be position independent!
-;
 ; We're starting with the bootloader layout:
 ; Common 0:
 ; 24 KB, 0x0000 -> 0x5FFF (0x00000 -> 0x05FFF)
@@ -194,6 +194,14 @@ _irq_uart1:
 			RESTORE
 			ei
 			reti
+
+_thread_yield:
+			di
+			SAVE
+			call __thread_schedule
+			RESTORE
+			ei
+			ret
 
 .area _HOME
 .area _CODE

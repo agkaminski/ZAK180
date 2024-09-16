@@ -17,7 +17,7 @@
 
 static struct {
 	int8_t started;
-	struct thread thread[4];
+	struct thread thread;
 } common;
 
 int putchar(int c)
@@ -36,29 +36,17 @@ int putchar(int c)
 	return 1;
 }
 
-static uint16_t stack(void) __naked
+void thread(void *arg)
 {
-	__asm
-		ld hl, #0
-		add hl, sp
-		ex de, hl
-		ret
-	__endasm;
-}
-
-static void thread(void *arg)
-{
-	uint8_t threadno = (uint8_t)arg;
-
-	for (volatile uint8_t i = 0; i < threadno; ++i) {
-		for (volatile uint16_t i = 5000; i != 0; ++i);
-	}
+	int i = (int)arg;
 
 	while (1) {
-		for (volatile uint16_t i = 5000; i != 0; ++i);
-		printf("Thread %u alive sp: %p\r\n", threadno, stack());
+		ktime_t now = timer_get();
+		printf("Now: %llu\r\n", now);
+		thread_sleep(now + 1000);
 	}
 }
+
 
 int main(void)
 {
@@ -73,10 +61,7 @@ int main(void)
 	timer_init();
 	thread_init();
 
-	thread_create(&common.thread[0], 4, thread, (void *)1);
-	thread_create(&common.thread[1], 4, thread, (void *)2);
-	thread_create(&common.thread[2], 4, thread, (void *)3);
-	thread_create(&common.thread[3], 4, thread, (void *)4);
+	thread_create(&common.thread, 4, thread, (void *)0);
 
 	/* Enable interrupts and wait for reschedule */
 	thread_start();
