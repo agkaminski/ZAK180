@@ -44,8 +44,7 @@ void lock_unlock(struct lock *lock)
 {
 	thread_critical_start();
 	lock->locked = 0;
-	_thread_signal(&lock->queue);
-	thread_critical_end();
+	_thread_signal_yield(lock->queue);
 }
 
 void lock_init(struct lock *lock)

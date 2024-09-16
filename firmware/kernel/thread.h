@@ -59,7 +59,11 @@ int _thread_wait(struct thread **queue, ktime_t wakeup);
 
 int _thread_signal(struct thread **queue);
 
+int _thread_signal_yield(struct thread **queue);
+
 int _thread_broadcast(struct thread **queue);
+
+int _thread_broadcast_yield(struct thread **queue);
 
 int thread_sleep_relative(ktime_t sleep);
 

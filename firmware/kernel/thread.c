@@ -211,6 +211,20 @@ int _thread_signal(struct thread **queue)
 	return 0;
 }
 
+int _thread_signal_yield(struct thread **queue)
+{
+	if (_thread_signal(queue)) {
+		--common.critical;
+		(void)thread_yield();
+		return 1;
+	}
+	else {
+		thread_critical_end();
+	}
+
+	return 0;
+}
+
 int _thread_broadcast(struct thread **queue)
 {
 	int ret = 0;
@@ -221,6 +235,20 @@ int _thread_broadcast(struct thread **queue)
 	}
 
 	return ret;
+}
+
+int _thread_broadcast_yield(struct thread **queue)
+{
+	if (_thread_broadcast(queue)) {
+		--common.critical;
+		(void)thread_yield();
+		return 1;
+	}
+	else {
+		thread_critical_end();
+	}
+
+	return 0;
 }
 
 static void thread_context_create(struct thread *thread, uint16_t entry, void *arg)
