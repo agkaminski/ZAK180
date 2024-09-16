@@ -69,10 +69,9 @@ static void _threads_add_ready(struct thread *thread)
 
 static void _thread_dequeue(struct thread *thread)
 {
-	if (thread->qwait != NULL) {
-		LIST_REMOVE(thread->qwait, thread, qnext, qprev);
-		_threads_add_ready(thread);
-	}
+	LIST_REMOVE(thread->qwait, thread, qnext, qprev);
+	thread->qwait = NULL;
+	_threads_add_ready(thread);
 }
 
 void _thread_schedule(struct cpu_context *context)
@@ -130,7 +129,7 @@ static void _thread_set_return(struct thread *thread, int value)
 
 void _thread_on_tick(struct cpu_context *context)
 {
-	ktime_t now = timer_get();
+	ktime_t now = _timer_get();
 
 	while (common.sleeping != NULL && common.sleeping->wakeup <= now) {
 		_thread_set_return(common.sleeping, -ETIME);
@@ -150,7 +149,7 @@ int thread_sleep(ktime_t wakeup)
 int thread_sleep_relative(ktime_t sleep)
 {
 	_CRITICAL_START;
-	return thread_sleep(timer_get() + sleep);
+	return thread_sleep(_timer_get() + sleep);
 }
 
 int _thread_wait(struct thread **queue, ktime_t wakeup)
