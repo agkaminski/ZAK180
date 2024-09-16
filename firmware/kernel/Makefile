@@ -17,6 +17,7 @@ OBJ = hal/crt0.rel $(SRC:.c=.rel)
 DRIVERS = uart.lib floppy.lib ay38912.lib mmu.lib vga.lib prt.lib
 FILESYSTEMS = fat12.lib
 LIB = ${DRIVERS} ${FILESYSTEMS}
+TRASH = *.bin *.lk *.map *.mem *.lst *.rel *.rst *.sym *.asm *.ihx *.noi *.hex
 
 .PHONY: clean
 
@@ -36,5 +37,8 @@ ${TARGET}.hex: ${OBJ}
 	@sdasz80 -l -o -s "$<"
 
 clean:
-	@rm -f *.bin *.lk *.map *.mem *.lst *.rel *.rst *.sym *.asm *.ihx *.noi *.hex
+	@rm -f ${TRASH}
+	@(cd proc && rm -f ${TRASH})
+	@(cd mem && rm -f ${TRASH})
+	@(cd hal && rm -f ${TRASH})
 
