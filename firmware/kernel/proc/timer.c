@@ -20,9 +20,9 @@ ktime_t _timer_get(void)
 
 ktime_t timer_get(void)
 {
-	_CRITICAL_START;
+	critical_start();
 	ktime_t ret = _timer_get();
-	_CRITICAL_END;
+	critical_end();
 
 	return ret;
 }

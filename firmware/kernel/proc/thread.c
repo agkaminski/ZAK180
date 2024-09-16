@@ -12,6 +12,7 @@
 
 #include "driver/critical.h"
 #include "driver/mmu.h"
+#include "driver/critical.h"
 #include "lib/errno.h"
 #include "lib/list.h"
 
@@ -25,25 +26,35 @@ static struct {
 
 	struct thread idle;
 
-	volatile int8_t started;
-	volatile uint8_t critical;
+	volatile int8_t schedule;
+	volatile uint8_t lock_level;
 } common;
+
+static void thread_scheduler_lock(void)
+{
+	common.schedule = 0;
+}
+
+static void thread_scheduler_unlock(void)
+{
+	common.schedule = 1;
+}
 
 void thread_critical_start(void)
 {
-	if (common.started) {
-		_DI;
-		++common.critical;
-	}
+	critical_start();
+	thread_scheduler_lock();
+	++common.lock_level;
+	critical_end();
 }
 
 void thread_critical_end(void)
 {
-	if (common.started) {
-		if (--common.critical == 0) {
-			_EI;
-		}
+	critical_start();
+	if (--common.lock_level == 0) {
+		thread_scheduler_unlock();
 	}
+	critical_end();
 }
 
 static void _thread_sleeping_enqueue(ktime_t wakeup)
@@ -77,10 +88,6 @@ static void _thread_dequeue(struct thread *thread)
 void _thread_schedule(struct cpu_context *context)
 {
 	struct thread *prev = common.current;
-
-	if (!common.started) {
-		return;
-	}
 
 	/* Put current thread */
 	if (common.current != NULL) {
@@ -129,26 +136,28 @@ static void _thread_set_return(struct thread *thread, int value)
 
 void _thread_on_tick(struct cpu_context *context)
 {
-	ktime_t now = _timer_get();
+	if (common.schedule) {
+		ktime_t now = _timer_get();
 
-	while (common.sleeping != NULL && common.sleeping->wakeup <= now) {
-		_thread_set_return(common.sleeping, -ETIME);
-		_threads_add_ready(common.sleeping);
+		while (common.sleeping != NULL && common.sleeping->wakeup <= now) {
+			_thread_set_return(common.sleeping, -ETIME);
+			_threads_add_ready(common.sleeping);
+		}
+
+		_thread_schedule(context);
 	}
-
-	_thread_schedule(context);
 }
 
 int thread_sleep(ktime_t wakeup)
 {
-	_CRITICAL_START;
+	thread_critical_start();
 	_thread_sleeping_enqueue(wakeup);
-	return thread_yield();
+	return thread_yield(&common.schedule);
 }
 
 int thread_sleep_relative(ktime_t sleep)
 {
-	_CRITICAL_START;
+	thread_critical_start();
 	return thread_sleep(_timer_get() + sleep);
 }
 
@@ -164,8 +173,7 @@ int _thread_wait(struct thread **queue, ktime_t wakeup)
 		_thread_sleeping_enqueue(wakeup);
 	}
 
-	--common.critical;
-	int ret = thread_yield();
+	int ret = thread_yield(&common.schedule);
 	thread_critical_start();
 
 	return ret;
@@ -184,8 +192,7 @@ int _thread_signal(struct thread **queue)
 int _thread_signal_yield(struct thread **queue)
 {
 	if (_thread_signal(queue)) {
-		--common.critical;
-		(void)thread_yield();
+		(void)thread_yield(&common.schedule);
 		return 1;
 	}
 	else {
@@ -210,8 +217,7 @@ int _thread_broadcast(struct thread **queue)
 int _thread_broadcast_yield(struct thread **queue)
 {
 	if (_thread_broadcast(queue)) {
-		--common.critical;
-		(void)thread_yield();
+		(void)thread_yield(&common.schedule);
 		return 1;
 	}
 	else {
@@ -279,7 +285,7 @@ int thread_create(struct thread *thread, uint8_t priority, void (*entry)(void * 
 
 void thread_start(void)
 {
-	common.started = 1;
+	common.schedule = 1;
 }
 
 void thread_init(void)

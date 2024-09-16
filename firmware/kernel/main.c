@@ -14,9 +14,10 @@
 
 #include "driver/uart.h"
 #include "driver/vga.h"
+#include "driver/critical.h"
 
 static struct {
-	int8_t started;
+	int8_t schedule;
 	struct thread thread[2];
 	struct thread *queue;
 } common;
@@ -25,14 +26,14 @@ int putchar(int c)
 {
 	char t = c;
 
-	if (common.started) {
+	if (common.schedule) {
 		uart1_write(&t, 1, 1);
 	}
 	else {
 		uart1_write_poll(&t, 1);
 	}
 
-	//vga_putchar(t);
+	vga_putchar(t);
 
 	return 1;
 }
@@ -75,7 +76,8 @@ int main(void)
 
 	/* Enable interrupts and wait for reschedule */
 	thread_start();
-	common.started = 1;
+	common.schedule = 1;
+	critical_enable();
 	_EI;
 
 	return 0;

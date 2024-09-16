@@ -64,9 +64,9 @@ static int _fifo_push(struct fifo *fifo, uint8_t c, uint8_t overwrite)
 
 static int fifo_push(struct fifo *fifo, uint8_t c)
 {
-	_CRITICAL_START;
+	critical_start();
 	int ret = _fifo_push(fifo, c, 0);
-	_CRITICAL_END;
+	critical_end();
 
 	return ret;
 }
@@ -85,9 +85,9 @@ static int _fifo_pop(struct fifo *fifo, uint8_t *c)
 
 static int fifo_pop(struct fifo *fifo, uint8_t *c)
 {
-	_CRITICAL_START;
+	critical_start();
 	int ret = _fifo_pop(fifo, c);
-	_CRITICAL_END;
+	critical_end();
 
 	return ret;
 }

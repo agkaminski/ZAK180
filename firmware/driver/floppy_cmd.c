@@ -189,11 +189,11 @@ int floppy_cmd_read_data(uint8_t c, uint8_t h, uint8_t r, uint8_t *buff, struct 
 		return -1;
 	}
 
-	_CRITICAL_START;
+	critical_start();
 
 	/* Write last cmd byte in critical section, so we start safely */
 	if (floppy_cmd_fifo_write(0x08) < 0) {
-		_CRITICAL_END;
+		critical_end();
 		return -1;
 	}
 
@@ -201,7 +201,7 @@ int floppy_cmd_read_data(uint8_t c, uint8_t h, uint8_t r, uint8_t *buff, struct 
 	 * No error checking here, but it's ok, we'll fail on read_result */
 	floppy_cmd_sector_read(buff);
 
-	_CRITICAL_END;
+	critical_end();
 
 	/* We lied that the sector is at end of the track, we'll get the result right away */
 	/* On success ST0 = 0x41, ST1 = 0x80 (EOT) */
@@ -278,11 +278,11 @@ int floppy_cmd_write_data(uint8_t c, uint8_t h, uint8_t r, const uint8_t *buff, 
 		return -1;
 	}
 
-	_CRITICAL_START;
+	critical_start();
 
 	/* Write last cmd byte in critical section, so we start safely */
 	if (floppy_cmd_fifo_write(0x08) < 0) {
-		_CRITICAL_END;
+		critical_end();
 		return -1;
 	}
 
@@ -290,7 +290,7 @@ int floppy_cmd_write_data(uint8_t c, uint8_t h, uint8_t r, const uint8_t *buff, 
 	 * No error checking here, but it's ok, we'll fail on read_result */
 	floppy_cmd_sector_write(buff);
 
-	_CRITICAL_END;
+	critical_end();
 
 	return floppy_cmd_read_result(res);
 }

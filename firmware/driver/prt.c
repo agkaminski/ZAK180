@@ -26,18 +26,18 @@ uint16_t _prt1_timer_get(void)
 
 uint16_t prt0_timer_get(void)
 {
-	_CRITICAL_START;
+	critical_start();
 	uint16_t ret = _prt0_timer_get();
-	_CRITICAL_END;
+	critical_end();
 
 	return ret;
 }
 
 uint16_t prt1_timer_get(void)
 {
-	_CRITICAL_START;
+	critical_start();
 	uint16_t ret = _prt1_timer_get();
-	_CRITICAL_END;
+	critical_end();
 
 	return ret;
 }

@@ -46,12 +46,12 @@ static struct {
 	uint8_t vbuffer[64][80];
 	uint8_t vdirty[64 / 8];
 	struct {
-		uint8_t x;
-		uint8_t y;
-		uint8_t state;
-		uint8_t prev;
-		uint8_t counter;
-		uint8_t enable;
+		volatile uint8_t x;
+		volatile uint8_t y;
+		volatile uint8_t state;
+		volatile uint8_t prev;
+		volatile uint8_t counter;
+		volatile uint8_t enable;
 	} cursor;
 	uint8_t rom;
 	uint8_t scroll;
@@ -71,9 +71,9 @@ static void _vga_set(char c)
 
 static void vga_set(char c)
 {
-	_CRITICAL_START;
+	critical_start();
 	_vga_set(c);
-	_CRITICAL_END;
+	critical_end();
 }
 
 static char vga_get(void)
@@ -160,13 +160,13 @@ static void vga_new_line(void)
 
 void vga_putchar(char c)
 {
-	//_CRITICAL_START;
+	critical_start();
 	if (common.cursor.state) {
 		vga_set(common.cursor.prev);
 		common.cursor.state = 0;
 	}
 	common.cursor.counter = 0;
-	//_CRITICAL_END;
+	critical_end();
 
 	switch (c) {
 		/* TODO add terminal control, tab, etc. */
@@ -190,6 +190,7 @@ void vga_putchar(char c)
 
 void _vga_clear(void)
 {
+	critical_start();
 	common.cursor.counter = 0;
 	common.cursor.prev = ' ';
 	common.cursor.state = 0;
@@ -197,6 +198,7 @@ void _vga_clear(void)
 	memset(common.vdirty, 0xFF, sizeof(common.vdirty));
 	common.cursor.x = 0;
 	common.cursor.y = 0;
+	critical_end();
 }
 
 void vga_select_rom(uint8_t rom)

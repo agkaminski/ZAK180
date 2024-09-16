@@ -197,6 +197,9 @@ _irq_uart1:
 
 _thread_yield:
 			di
+			; clear scheduler lock
+			ld a, #1
+			ld (hl), a
 			; default return value
 			ld de, #0
 			SAVE

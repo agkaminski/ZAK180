@@ -7,7 +7,12 @@
 #ifndef DRIVER_CRITICAL_H_
 #define DRIVER_CRITICAL_H_
 
-#define _CRITICAL_START __asm di __endasm
-#define _CRITICAL_END   __asm ei __endasm
+void critical_start(void);
+
+
+void critical_end(void);
+
+
+void critical_enable(void);
 
 #endif

@@ -14,7 +14,7 @@ SRC = main.c
 SRC += mem/page.c
 SRC += proc/timer.c proc/thread.c proc/lock.c
 OBJ = hal/crt0.rel $(SRC:.c=.rel)
-DRIVERS = uart.lib floppy.lib ay38912.lib mmu.lib vga.lib prt.lib
+DRIVERS = uart.lib floppy.lib ay38912.lib mmu.lib vga.lib prt.lib critical.lib
 FILESYSTEMS = fat12.lib
 LIB = ${DRIVERS} ${FILESYSTEMS}
 TRASH = *.bin *.lk *.map *.mem *.lst *.rel *.rst *.sym *.asm *.ihx *.noi *.hex

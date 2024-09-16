@@ -12,7 +12,7 @@ LDFLAGS = --code-loc ${CODE} --data-loc ${DATA} --no-std-crt0
 
 SRC = main.c
 OBJ = crt0.rel $(SRC:.c=.rel)
-DRIVERS = uart.lib floppy.lib ay38912.lib mmu.lib vga.lib
+DRIVERS = uart.lib floppy.lib ay38912.lib mmu.lib vga.lib critical.lib
 FILESYSTEMS = fat12.lib
 LIB = ${DRIVERS} ${FILESYSTEMS}
 

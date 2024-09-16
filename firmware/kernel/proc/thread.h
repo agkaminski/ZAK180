@@ -51,7 +51,7 @@ void thread_critical_start(void);
 
 void thread_critical_end(void);
 
-int thread_yield(void);
+int thread_yield(volatile uint8_t *scheduler_lock);
 
 int thread_sleep(ktime_t wakeup);
 

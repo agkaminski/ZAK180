@@ -12,6 +12,7 @@
 #include "driver/floppy.h"
 #include "filesystem/fat12.h"
 #include "driver/mmu.h"
+#include "driver/critical.h"
 
 #define SCRATCH_SIZE (8 * 1024)
 
@@ -64,6 +65,7 @@ static void kernel_jump(void)
 
 int main(void)
 {
+	critical_enable();
 	uart_init();
 	vga_init();
 
