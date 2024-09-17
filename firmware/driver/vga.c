@@ -42,6 +42,8 @@
 
 #define CURSOR   219
 
+#define TAB_SIZE 4
+
 static struct {
 	uint8_t vbuffer[64][80];
 	uint8_t vdirty[64 / 8];
@@ -171,7 +173,12 @@ void vga_putchar(char c)
 	critical_end();
 
 	switch (c) {
-		/* TODO add terminal control, tab, etc. */
+		/* TODO add terminal control etc. */
+		case '\t':
+			common.cursor.x += TAB_SIZE;
+			common.cursor.x -= common.cursor.x % TAB_SIZE;
+			break;
+
 		case '\r':
 			common.cursor.x = 0;
 			break;
