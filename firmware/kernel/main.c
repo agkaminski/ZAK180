@@ -16,10 +16,10 @@
 #include "driver/vga.h"
 #include "driver/critical.h"
 
+#include "test/test.h"
+
 static struct {
 	int8_t schedule;
-	struct thread thread[2];
-	struct thread *queue;
 } common;
 
 int putchar(int c)
@@ -38,26 +38,6 @@ int putchar(int c)
 	return 1;
 }
 
-void waiter(void *arg)
-{
-	while (1) {
-		thread_critical_start();
-		_thread_wait(&common.queue, 0);
-		thread_critical_end();
-		printf("Wakeup %llu\r\n", timer_get() / 1000);
-	}
-}
-
-void pinger(void *arg)
-{
-	while (1) {
-		thread_sleep_relative(1000);
-		thread_critical_start();
-		_thread_signal(&common.queue);
-		thread_critical_end();
-	}
-}
-
 int main(void)
 {
 	uart_init();
@@ -71,8 +51,7 @@ int main(void)
 	timer_init();
 	thread_init();
 
-	thread_create(&common.thread[0], 4, waiter, (void *)0);
-	thread_create(&common.thread[1], 4, pinger, (void *)0);
+	test_kmalloc();
 
 	/* Enable interrupts and wait for reschedule */
 	thread_start();
