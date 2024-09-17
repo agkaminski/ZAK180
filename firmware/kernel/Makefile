@@ -11,7 +11,7 @@ CFLAGS = -m${CPU} -DVERSION='${GHASH}' -DDATE='${DATE}' \
 LDFLAGS = --code-loc ${CODE} --data-loc ${DATA} --no-std-crt0
 
 SRC = main.c
-SRC += mem/page.c
+SRC += mem/page.c mem/kmalloc.c
 SRC += proc/timer.c proc/thread.c proc/lock.c
 OBJ = hal/crt0.rel $(SRC:.c=.rel)
 DRIVERS = uart.lib floppy.lib ay38912.lib mmu.lib vga.lib prt.lib critical.lib
