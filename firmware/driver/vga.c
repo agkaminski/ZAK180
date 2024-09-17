@@ -114,20 +114,6 @@ void vga_vblank_handler(void)
 {
 	uint8_t limit = 4;
 
-	if (++common.cursor.counter > 28) {
-		common.cursor.counter = 0;
-
-		if (common.cursor.state) {
-			_vga_set(common.cursor.prev);
-			common.cursor.state = 0;
-		}
-		else if (common.cursor.enable) {
-			common.cursor.prev = vga_get();
-			_vga_set(CURSOR);
-			common.cursor.state = 1;
-		}
-	}
-
 	for (uint8_t i = 0; (i < sizeof(common.vdirty)) && limit; ++i) {
 		if (common.vdirty[i]) {
 			uint8_t mask = 1;
@@ -143,6 +129,20 @@ void vga_vblank_handler(void)
 	}
 
 	ay38912_writePort((common.rom << 6) | (common.scroll & 0x3F));
+
+	if (++common.cursor.counter > 28) {
+		common.cursor.counter = 0;
+
+		if (common.cursor.state) {
+			_vga_set(common.cursor.prev);
+			common.cursor.state = 0;
+		}
+		else if (common.cursor.enable) {
+			common.cursor.prev = vga_get();
+			_vga_set(CURSOR);
+			common.cursor.state = 1;
+		}
+	}
 }
 
 static void vga_new_line(void)

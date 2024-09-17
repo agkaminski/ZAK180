@@ -137,6 +137,10 @@ static void _thread_set_return(struct thread *thread, int value)
 void _thread_on_tick(struct cpu_context *context)
 {
 	if (common.schedule) {
+		/* Allow HW IRQ to preempt the scheduler */
+		common.schedule = 0;
+		_EI;
+
 		ktime_t now = _timer_get();
 
 		while (common.sleeping != NULL && common.sleeping->wakeup <= now) {
@@ -145,6 +149,9 @@ void _thread_on_tick(struct cpu_context *context)
 		}
 
 		_thread_schedule(context);
+
+		_DI;
+		common.schedule = 1;
 	}
 }
 

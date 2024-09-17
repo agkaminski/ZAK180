@@ -44,7 +44,7 @@ void waiter(void *arg)
 		thread_critical_start();
 		_thread_wait(&common.queue, 0);
 		thread_critical_end();
-		printf("Wakeup %llu\r\n", timer_get());
+		printf("Wakeup %llu\r\n", timer_get() / 1000);
 	}
 }
 

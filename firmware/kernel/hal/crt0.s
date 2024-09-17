@@ -102,7 +102,7 @@ ivt:
 .word _irq_uart0  ; ASCI 0
 .word _irq_uart1  ; ASCI 1
 
-.macro SAVE
+.macro SAVE_CTX
 			push af
 			push bc
 			push de
@@ -138,7 +138,7 @@ ivt:
 			add hl, bc
 .endm
 
-.macro RESTORE
+.macro RESTORE_CTX
 			pop hl
 			pop bc
 			pop de
@@ -159,39 +159,64 @@ ivt:
 			pop af
 .endm
 
+.macro SAVE_IRQ
+			ex af, af'
+			exx
+			push ix
+			push iy
+
+			in0 a, (#CBAR)
+			push af
+
+			; Use kernel memory layout on kernel enter
+			ld a, #0xFE
+			out0 (#CBAR), a
+.endm
+
+.macro RESTORE_IRQ
+			; Restore pre-irq memory layout
+			pop af
+			out0 (#CBAR), a
+
+			pop iy
+			pop ix
+			exx
+			ex af, af'
+.endm
+
 _irq_bad:
 			halt
 
 _irq_vblank:
-			SAVE
+			SAVE_IRQ
 			out0 (#INT2_ACK), a
 			call _vga_vblank_handler
-			RESTORE
+			RESTORE_IRQ
 			ei
 			reti
 
 _irq_prt0:
-			SAVE
+			SAVE_CTX
 			; acknownlage irq
 			in0 a, (#TCR)
 			in0 a, (#TMDR0L)
 			in0 a, (#TMDR0H)
 			call _timer_irq_handler
-			RESTORE
+			RESTORE_CTX
 			ei
 			reti
 
 _irq_uart0:
-			SAVE
+			SAVE_IRQ
 			call _uart0_irq_handler
-			RESTORE
+			RESTORE_IRQ
 			ei
 			reti
 
 _irq_uart1:
-			SAVE
+			SAVE_IRQ
 			call _uart1_irq_handler
-			RESTORE
+			RESTORE_IRQ
 			ei
 			reti
 
@@ -202,9 +227,9 @@ _thread_yield:
 			ld (hl), a
 			; default return value
 			ld de, #0
-			SAVE
+			SAVE_CTX
 			call __thread_schedule
-			RESTORE
+			RESTORE_CTX
 			ei
 			ret
 
