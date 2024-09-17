@@ -166,6 +166,8 @@ void vga_putchar(char c)
 		common.cursor.state = 0;
 	}
 	common.cursor.counter = 0;
+	uint8_t cursor_enabled = common.cursor.enable;
+	common.cursor.enable = 0;
 	critical_end();
 
 	switch (c) {
@@ -186,6 +188,8 @@ void vga_putchar(char c)
 			}
 			break;
 	}
+
+	common.cursor.enable = cursor_enabled;
 }
 
 void _vga_clear(void)
