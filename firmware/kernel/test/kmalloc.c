@@ -26,11 +26,9 @@ static int check(void)
 {
 	for (int i = 0; i < NELEMS(ptr); ++i) {
 		if (ptr[i] != NULL) {
-			for (int j = 0; j < size[i]; ++j) {
-				if (ptr[i][j] != (char)i) {
-					printf("Error ptr[%d][%d] = %d", i, j, ptr[i][j]);
-					return -1;
-				}
+			if (ptr[i][0] != (char)i || memcmp(&ptr[i][0], &ptr[i][1], size[i] - 1)) {
+				printf("Error ptr[%d]\r\n", i);
+				return -1;
 			}
 		}
 	}
@@ -58,6 +56,8 @@ static void heap_show(void *heap)
 
 static void test(void *arg)
 {
+	(void)arg;
+
 	kalloc_init(heap, sizeof(heap));
 	test_srand(420);
 

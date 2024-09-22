@@ -51,8 +51,6 @@ int main(void)
 	timer_init();
 	thread_init();
 
-	test_kmalloc();
-
 	/* Enable interrupts and wait for reschedule */
 	thread_start();
 	common.schedule = 1;
