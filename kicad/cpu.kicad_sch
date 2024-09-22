@@ -12367,7 +12367,7 @@
 				)
 			)
 		)
-		(property "Value" "16 MHz"
+		(property "Value" "12.288 MHz"
 			(at 26.67 48.26 0)
 			(effects
 				(font
@@ -14071,7 +14071,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Capacitor_THT:C_Disc_D4.3mm_W1.9mm_P5.00mm"
+		(property "Footprint" "Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P2.50mm"
 			(at 33.3248 55.88 0)
 			(effects
 				(font
@@ -14537,7 +14537,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Capacitor_THT:C_Disc_D4.3mm_W1.9mm_P5.00mm"
+		(property "Footprint" "Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P2.50mm"
 			(at 18.0848 55.88 0)
 			(effects
 				(font
