@@ -1,6 +1,8 @@
 # ZAK180 computer
 
-<img src="img/computer.png">
+<img src="img/top.png">
+
+<img src="img/bottom.png">
 
 Work in progress.
 
@@ -141,10 +143,6 @@ Schematic of the computer in a friendly .pdf form.
 ### 3dprint
 
 3D models designed for FDM priting.
-
-## Rev A
-
-<img src="img/pcb.png">
 
 ## License
 
