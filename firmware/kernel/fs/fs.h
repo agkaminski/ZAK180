@@ -7,8 +7,16 @@
 #ifndef KERNEL_FS_H_
 #define KERNEL_FS_H_
 
+#include <stddef.h>
+#include <stdint.h>
+
+struct fs_cb {
+	int (*read_sector)(uint16_t sector, void *buff);
+	int (*write_sector)(uint16_t sector, void *buff);
+};
+
 #include "proc/timer.h"
-#include "filesystem/fat12.h"
+#include "fs/fat.h"
 
 /* File type */
 #define S_IFMT   0x1F
@@ -34,6 +42,13 @@
 
 struct fs_file;
 
+struct fs_ctx {
+	union {
+		struct fat_fs fat;
+		int dummy; /* Fix SDCC retardness until more FSes are available */
+	} fs;
+};
+
 struct fs_dentry {
 	uint8_t attr;
 	ktime_t ctime;
@@ -44,21 +59,25 @@ struct fs_dentry {
 };
 
 struct fs_file_op {
-	int8_t (*open)(struct fs_file *file, uint8_t mode, uint8_t flags);
-	int8_t (*close)(struct fs_file *file);
-	int8_t (*read)(struct fs_file *file, void *buff, size_t bufflen, uint32_t offs);
-	int8_t (*write)(struct fs_file *file, const void *buff, size_t bufflen, uint32_t offs);
-	int8_t (*truncate)(struct fs_file *file, uint32_t size);
-	int8_t (*readdir)(struct fs_file *file, struct fs_dentry *dentry, uint16_t idx);
-	int8_t (*unlink)(struct fs_file *file);
-	int8_t (*set_permissions)(struct fs_file *file, uint8_t *perm);
-	int8_t (*ioctl)(struct fs_file *file, int16_t op, ...);
+	int8_t (*open)(struct fs_ctx *ctx, struct fs_file *file, const char *name, struct fs_file *dir, int8_t create, uint8_t attr);
+	int8_t (*close)(struct fs_ctx *ctx, struct fs_file *file);
+	int16_t (*read)(struct fs_ctx *ctx, struct fs_file *file, void *buff, size_t bufflen, uint32_t offs);
+	int16_t (*write)(struct fs_ctx *ctx, struct fs_file *file, const void *buff, size_t bufflen, uint32_t offs);
+	int8_t (*truncate)(struct fs_ctx *ctx, struct fs_file *file, uint32_t size);
+	int8_t (*readdir)(struct fs_ctx *ctx, struct fs_file *file, struct fs_dentry *dentry, uint16_t idx);
+	int8_t (*move)(struct fs_ctx *ctx, struct fs_file *file, struct fs_file *ndir, const char *name);
+	int8_t (*remove)(struct fs_ctx *ctx, struct fs_file *file);
+	int8_t (*set_attr)(struct fs_ctx *ctx, struct fs_file *file, uint8_t attr, uint8_t mask);
+	int8_t (*ioctl)(struct fs_ctx *ctx, struct fs_file *file, int16_t op, ...);
+	int8_t (*mount)(struct fs_ctx *ctx, struct fs_cb *cb, struct fs_file *parent, struct fs_file *rootdir);
+	int8_t (*unmount)(struct fs_ctx *ctx);
 };
 
 struct fs_file {
 	/* File system characteristic data storage */
 	union {
-		struct fat12_file fat12;
+		struct fat_file fat;
+		int dummy; /* Fix SDCC retardness until more FSes are available */
 	} file;
 
 	/* Directory the file resides in */

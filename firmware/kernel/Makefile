@@ -13,6 +13,7 @@ LDFLAGS = --code-loc ${CODE} --data-loc ${DATA} --no-std-crt0
 SRC = main.c
 SRC += mem/page.c mem/kmalloc.c
 SRC += proc/timer.c proc/thread.c proc/lock.c
+SRC += fs/fs.c fs/fat.c
 #SRC += test/rand.c test/kmalloc.c test/condwait.c
 OBJ = hal/crt0.rel $(SRC:.c=.rel)
 DRIVERS = driver.lib
