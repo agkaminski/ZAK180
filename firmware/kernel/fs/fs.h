@@ -43,23 +43,6 @@ struct fs_cb {
 
 struct fs_file;
 
-struct fs_ctx {
-	union {
-		struct fat_fs fat;
-		int dummy; /* Fix SDCC retardness until more FSes are available */
-	} fs;
-	enum { fs_fat, fs_unknown } type;
-};
-
-struct fs_dentry {
-	uint8_t attr;
-	ktime_t ctime;
-	ktime_t atime;
-	ktime_t mttime;
-	uint32_t size;
-	char name[FS_NAME_LENGTH_MAX];
-};
-
 struct fs_file_op {
 	int8_t (*open)(struct fs_ctx *ctx, struct fs_file *file, const char *name, struct fs_file *dir, int8_t create, uint8_t attr);
 	int8_t (*close)(struct fs_ctx *ctx, struct fs_file *file);
@@ -71,9 +54,27 @@ struct fs_file_op {
 	int8_t (*remove)(struct fs_ctx *ctx, struct fs_file *file);
 	int8_t (*set_attr)(struct fs_ctx *ctx, struct fs_file *file, uint8_t attr, uint8_t mask);
 	int8_t (*ioctl)(struct fs_ctx *ctx, struct fs_file *file, int16_t op, va_list arg);
-	int8_t (*mount)(struct fs_ctx *ctx, struct fs_cb *cb, struct fs_file *parent, struct fs_file *rootdir);
+	int8_t (*mount)(struct fs_ctx *ctx, struct fs_file *dir, struct fs_file *root);
 	int8_t (*unmount)(struct fs_ctx *ctx);
-	struct fs_ctx *ctx;
+};
+
+struct fs_ctx {
+	union {
+		struct fat_fs fat;
+		int dummy; /* Fix SDCC retardness until more FSes are available */
+	} fs;
+	const struct fs_cb *cb;
+	const struct fs_file_op *op;
+	enum { fs_fat, fs_unknown } type;
+};
+
+struct fs_dentry {
+	uint8_t attr;
+	ktime_t ctime;
+	ktime_t atime;
+	ktime_t mttime;
+	uint32_t size;
+	char name[FS_NAME_LENGTH_MAX];
 };
 
 struct fs_file {
@@ -88,7 +89,6 @@ struct fs_file {
 
 	/* Directory mounted at this point, NULL for no mountpoint */
 	struct fs_file *mountpoint;
-	struct fs_ctx *mountfs;
 
 	/* Reference counters */
 	int8_t nrefs;
@@ -100,8 +100,8 @@ struct fs_file {
 	/* File type and permissions */
 	uint8_t attr;
 
-	/* File operations, set by the FS */
-	const struct fs_file_op *op;
+	/* File system context */
+	struct fs_ctx *ctx;
 };
 
 #endif
