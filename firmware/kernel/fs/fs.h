@@ -9,6 +9,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdarg.h>
 
 struct fs_cb {
 	int (*read_sector)(uint16_t sector, void *buff);
@@ -47,6 +48,7 @@ struct fs_ctx {
 		struct fat_fs fat;
 		int dummy; /* Fix SDCC retardness until more FSes are available */
 	} fs;
+	enum { fs_fat, fs_unknown } type;
 };
 
 struct fs_dentry {
@@ -68,9 +70,10 @@ struct fs_file_op {
 	int8_t (*move)(struct fs_ctx *ctx, struct fs_file *file, struct fs_file *ndir, const char *name);
 	int8_t (*remove)(struct fs_ctx *ctx, struct fs_file *file);
 	int8_t (*set_attr)(struct fs_ctx *ctx, struct fs_file *file, uint8_t attr, uint8_t mask);
-	int8_t (*ioctl)(struct fs_ctx *ctx, struct fs_file *file, int16_t op, ...);
+	int8_t (*ioctl)(struct fs_ctx *ctx, struct fs_file *file, int16_t op, va_list arg);
 	int8_t (*mount)(struct fs_ctx *ctx, struct fs_cb *cb, struct fs_file *parent, struct fs_file *rootdir);
 	int8_t (*unmount)(struct fs_ctx *ctx);
+	struct fs_ctx *ctx;
 };
 
 struct fs_file {
@@ -83,8 +86,11 @@ struct fs_file {
 	/* Directory the file resides in */
 	struct fs_file *parent;
 
+	/* Directory mounted at this point, NULL for no mountpoint */
+	struct fs_file *mountpoint;
+	struct fs_ctx *mountfs;
+
 	/* Reference counters */
-	int8_t nlinks;
 	int8_t nrefs;
 
 	/* Children */
