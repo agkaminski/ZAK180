@@ -13,7 +13,7 @@
 struct dev_blk {
 	int (*read)(off_t offs, void *buff, size_t bufflen);
 	int (*write)(off_t offs, const void *buff, size_t bufflen);
-	int (*sync)(off_t offs, size_t len);
+	int (*sync)(off_t offs, off_t len);
 	off_t size;
 };
 
