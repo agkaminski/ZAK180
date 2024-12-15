@@ -16,6 +16,7 @@ struct fs_cb {
 	int (*write_sector)(uint16_t sector, void *buff);
 };
 
+#include "proc/lock.h"
 #include "proc/timer.h"
 #include "fs/fat.h"
 
@@ -44,16 +45,16 @@ struct fs_cb {
 struct fs_file;
 
 struct fs_file_op {
-	int8_t (*open)(struct fs_ctx *ctx, struct fs_file *file, const char *name, struct fs_file *dir, int8_t create, uint8_t attr);
-	int8_t (*close)(struct fs_ctx *ctx, struct fs_file *file);
-	int16_t (*read)(struct fs_ctx *ctx, struct fs_file *file, void *buff, size_t bufflen, uint32_t offs);
-	int16_t (*write)(struct fs_ctx *ctx, struct fs_file *file, const void *buff, size_t bufflen, uint32_t offs);
-	int8_t (*truncate)(struct fs_ctx *ctx, struct fs_file *file, uint32_t size);
-	int8_t (*readdir)(struct fs_ctx *ctx, struct fs_file *file, struct fs_dentry *dentry, uint16_t idx);
-	int8_t (*move)(struct fs_ctx *ctx, struct fs_file *file, struct fs_file *ndir, const char *name);
-	int8_t (*remove)(struct fs_ctx *ctx, struct fs_file *file);
-	int8_t (*set_attr)(struct fs_ctx *ctx, struct fs_file *file, uint8_t attr, uint8_t mask);
-	int8_t (*ioctl)(struct fs_ctx *ctx, struct fs_file *file, int16_t op, va_list arg);
+	int8_t (*open)(struct fs_file *file, const char *name, struct fs_file *dir, int8_t create, uint8_t attr);
+	int8_t (*close)(struct fs_file *file);
+	int16_t (*read)(struct fs_file *file, void *buff, size_t bufflen, uint32_t offs);
+	int16_t (*write)(struct fs_file *file, const void *buff, size_t bufflen, uint32_t offs);
+	int8_t (*truncate)(struct fs_file *file, uint32_t size);
+	int8_t (*readdir)(struct fs_file *dir, struct fs_dentry *dentry, uint16_t idx);
+	int8_t (*move)(struct fs_file *file, struct fs_file *ndir, const char *name);
+	int8_t (*remove)(struct fs_file *file);
+	int8_t (*set_attr)(struct fs_file *file, uint8_t attr, uint8_t mask);
+	int8_t (*ioctl)(struct fs_file *file, int16_t op, va_list arg);
 	int8_t (*mount)(struct fs_ctx *ctx, struct fs_file *dir, struct fs_file *root);
 	int8_t (*unmount)(struct fs_ctx *ctx);
 };
@@ -90,8 +91,9 @@ struct fs_file {
 	/* Directory mounted at this point, NULL for no mountpoint */
 	struct fs_file *mountpoint;
 
-	/* Reference counters */
+	/* Synchronization */
 	int8_t nrefs;
+	struct lock lock;
 
 	/* Children */
 	struct fs_file *fnext;
@@ -99,6 +101,9 @@ struct fs_file {
 
 	/* File type and permissions */
 	uint8_t attr;
+
+	/* Internal flags */
+	uint8_t flags;
 
 	/* File system context */
 	struct fs_ctx *ctx;

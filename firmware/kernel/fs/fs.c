@@ -14,6 +14,8 @@
 #include "lib/list.h"
 #include "mem/kmalloc.h"
 
+#define FLAG_DELETE 0x1
+
 static struct {
 	struct lock lock;
 	struct fs_file root;
@@ -24,23 +26,33 @@ static void fs_file_get(struct fs_file *file)
 	++file->nrefs;
 }
 
-static void fs_file_put(struct fs_file *file)
+static int8_t fs_file_put(struct fs_file *file)
 {
+	int8_t ret = 0;
+
 	--file->nrefs;
 	assert(file->nrefs >= 0);
 
 	if (!file->nrefs) {
-		assert(file->mountpoint == NULL && file->mountfs == NULL);
+		lock_lock(&file->lock);
+		assert(file->mountpoint == NULL);
 		assert(file->fnext == NULL && file->fprev == NULL);
 
 		if (file->parent != NULL) {
 			struct fs_file *parent = file->parent;
 			LIST_REMOVE(&parent, file, fnext, fprev);
-			fs_file_put(file->parent);
+			(void)fs_file_put(file->parent);
 		}
+
+		if (file->flags & FLAG_DELETE) {
+			ret = file->ctx->op->remove(file);
+		}
+		lock_unlock(&file->lock);
 
 		kfree(file);
 	}
+
+	return ret;
 }
 
 static struct fs_file *fs_file_spawn(uint8_t attr)
@@ -54,29 +66,57 @@ static struct fs_file *fs_file_spawn(uint8_t attr)
 	return file;
 }
 
-int8_t fs_open(struct fs_file *file, const char *name, struct fs_file *dir, int8_t create, uint8_t attr)
+int8_t fs_open(const char *path, struct fs_file **file, int8_t mode, uint8_t attr)
 {
-	if (file->ctx->op->open == NULL) return -ENOSYS;
+
 }
 
 int8_t fs_close(struct fs_file *file)
 {
 	if (file->ctx->op->close == NULL) return -ENOSYS;
+
+	lock_lock(&file->lock);
+	int8_t ret = file->ctx->op->close(file);
+	lock_unlock(&file->lock);
+
+	lock_lock(&common.lock);
+	ret = fs_file_put(file);
+	lock_unlock(&common.lock);
+
+	return ret;
 }
 
 int16_t fs_read(struct fs_file *file, void *buff, size_t bufflen, uint32_t offs)
 {
 	if (file->ctx->op->read == NULL) return -ENOSYS;
+
+	lock_lock(&file->lock);
+	int16_t ret = file->ctx->op->read(file, buff, bufflen, offs);
+	lock_unlock(&file->lock);
+
+	return ret;
 }
 
 int16_t fs_write(struct fs_file *file, const void *buff, size_t bufflen, uint32_t offs)
 {
 	if (file->ctx->op->write == NULL) return -ENOSYS;
+
+	lock_lock(&file->lock);
+	int16_t ret = file->ctx->op->write(file, buff, bufflen, offs);
+	lock_unlock(&file->lock);
+
+	return ret;
 }
 
 int8_t fs_truncate(struct fs_file *file, uint32_t size)
 {
 	if (file->ctx->op->truncate == NULL) return -ENOSYS;
+
+	lock_lock(&file->lock);
+	int8_t ret = file->ctx->op->truncate(file, size);
+	lock_unlock(&file->lock);
+
+	return ret;
 }
 
 int8_t fs_readdir(struct fs_file *file, struct fs_dentry *dentry, uint16_t idx)
@@ -92,12 +132,33 @@ int8_t fs_move(struct fs_file *file, struct fs_file *ndir, const char *name)
 int8_t fs_remove(struct fs_file *file)
 {
 	if (file->ctx->op->remove == NULL) return -ENOSYS;
+
+	lock_lock(&file->lock);
+	file->flags |= FLAG_DELETE;
+	lock_unlock(&file->lock);
+
+	lock_lock(&common.lock);
+	int8_t ret = fs_file_put(file);
+	lock_unlock(&common.lock);
+
+	return ret;
 }
 
 int8_t fs_set_attr(struct fs_file *file, uint8_t attr, uint8_t mask)
 {
-	if (file->ctx->op->set_attr == NULL) return -ENOSYS;
-	return file->ctx->op->set_attr(file->ctx, file, attr, mask);
+	int8_t ret = 0;
+
+	lock_lock(&file->lock);
+	if (file->ctx->op->set_attr != NULL) {
+		ret = file->ctx->op->set_attr(file, attr, mask);
+	}
+
+	if (!ret) {
+		file->attr = (file->attr & ~mask) | (attr & mask);
+	}
+	lock_unlock(&file->lock);
+
+	return ret;
 }
 
 int8_t fs_ioctl(struct fs_file *file, int16_t op, ...)
@@ -106,7 +167,9 @@ int8_t fs_ioctl(struct fs_file *file, int16_t op, ...)
 
 	va_list args;
 	va_start(args, op);
-	int8_t ret = file->ctx->op->ioctl(file->ctx, file, op, args);
+	lock_lock(&file->lock);
+	int8_t ret = file->ctx->op->ioctl(file, op, args);
+	lock_unlock(&file->lock);
 	va_end(args);
 	return ret;
 }
@@ -118,14 +181,14 @@ int8_t fs_mount(struct fs_ctx *ctx, struct fs_cb *cb, struct fs_file *dir)
 		return -ENOMEM;
 	}
 
-	lock_lock(&common.lock);
 	if (dir == NULL) {
 		/* Mouting rootfs */
 		dir = &common.root;
 	}
 
+	lock_lock(&dir->lock);
 	if (dir->mountpoint != NULL) {
-		lock_unlock(&common.lock);
+		lock_unlock(&dir->lock);
 		kfree(rootdir);
 		return -EINVAL;
 	}
@@ -138,12 +201,14 @@ int8_t fs_mount(struct fs_ctx *ctx, struct fs_cb *cb, struct fs_file *dir)
 	else {
 		kfree(rootdir);
 	}
-	lock_unlock(&common.lock);
+	lock_unlock(&dir->lock);
 
 	return ret;
 }
 
 int8_t fs_unmount(struct fs_file *mountpoint)
 {
+	if (mountpoint->mountpoint == NULL) return -EINVAL;
+
 
 }
