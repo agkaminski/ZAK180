@@ -125,6 +125,8 @@ static int blk_floppy_sync(off_t offs, off_t len)
 
 int blk_floppy_init(struct dev_blk *blk)
 {
+	cache.sno = 0xFFFF;
+
 	*blk = blk_floppy;
 	return floppy_init();
 }
