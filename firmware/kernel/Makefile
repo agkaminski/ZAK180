@@ -42,6 +42,9 @@ ${TARGET}.hex: ${OBJ}
 clean:
 	@rm -f ${TRASH}
 	@(cd proc && rm -f ${TRASH})
+	@(cd fs && rm -f ${TRASH})
+	@(cd dev && rm -f ${TRASH})
+	@(cd test && rm -f ${TRASH})
 	@(cd mem && rm -f ${TRASH})
 	@(cd hal && rm -f ${TRASH})
 
