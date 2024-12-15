@@ -8,14 +8,13 @@
 
 #ifndef NDEBUG
 #include <stdio.h>
-#include "hal/cpu.h"
+#include "lib/panic.h"
 
 #define assert(__cond) \
 	do { \
 		if (!(__cond)) { \
 			printf("Assertion '%s' failed in file %s:%d, function %s.\n", #__cond, __FILE__, __LINE__, __func__); \
-			_DI; \
-			_HALT; \
+			panic(); \
 		} \
 	} while (0)
 #else
