@@ -53,7 +53,7 @@ static const struct fs_file_op fat_op = {
 
 static int8_t fat_fat_get(struct fs_ctx *ctx, uint16_t n, uint16_t *cluster)
 {
-	if (CLUSTER2SECTOR(n) > ctx->fs.fat.size) {
+	if (CLUSTER2SECTOR(n) >= (ctx->cb->size / FAT12_SECTOR_SIZE)) {
 		return -EIO;
 	}
 
@@ -81,7 +81,7 @@ static int8_t fat_fat_get(struct fs_ctx *ctx, uint16_t n, uint16_t *cluster)
 
 static int8_t fat_fat_set(struct fs_ctx *ctx,  uint16_t n, uint16_t cluster)
 {
-	if ((CLUSTER2SECTOR(n) > ctx->fs.fat.size) || (cluster & 0xF000)) {
+	if ((CLUSTER2SECTOR(n) >= (ctx->cb->size / FAT12_SECTOR_SIZE)) || (cluster & 0xF000)) {
 		return -1;
 	}
 
@@ -647,8 +647,6 @@ static int8_t fat_op_mount(struct fs_ctx *ctx, struct fs_file *dir, struct fs_fi
 		return -EIO;
 	}
 
-	ctx->fs.fat.size = bpb.total_sector_count;
-
 	/* Ignore rest of the fields - most likely
 	 * not valid anyway. */
 
@@ -656,6 +654,8 @@ static int8_t fat_op_mount(struct fs_ctx *ctx, struct fs_file *dir, struct fs_fi
 
 	/* FAT12 does not have physical . and .. entries in rootdir */
 	(void)dir;
+
+	ctx->type = FS_TYPE_FAT;
 
 	return 0;
 }

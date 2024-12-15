@@ -19,11 +19,7 @@
 
 #define FAT12_SECTOR_SIZE 512
 
-struct fat_fs {
-	uint8_t sbuff[FAT12_SECTOR_SIZE]; /* Sector buffer */
-	uint16_t sno;                     /* Number of the sector in the buffer */
-	uint16_t size;                    /* Total media size in sectors */
-};
+extern const struct fs_file_op fat_op;
 
 struct fat_dentry {
 	char fname[8];

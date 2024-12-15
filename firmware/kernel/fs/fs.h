@@ -38,6 +38,8 @@
 
 #define FS_NAME_LENGTH_MAX 32
 
+#define FS_TYPE_FAT 0x01
+
 struct fs_file;
 struct fs_ctx;
 
@@ -66,13 +68,9 @@ struct fs_file_op {
 };
 
 struct fs_ctx {
-	union {
-		struct fat_fs fat;
-		int dummy; /* Fix SDCC retardness until more FSes are available */
-	} fs;
 	struct dev_blk *cb;
 	const struct fs_file_op *op;
-	enum { fs_fat, fs_unknown } type;
+	uint8_t type;
 };
 
 struct fs_file {
@@ -105,5 +103,19 @@ struct fs_file {
 	/* File system context */
 	struct fs_ctx *ctx;
 };
+
+
+int8_t fs_open(const char *path, struct fs_file **file, int8_t mode, uint8_t attr);
+int8_t fs_close(struct fs_file *file);
+int16_t fs_read(struct fs_file *file, void *buff, size_t bufflen, uint32_t offs);
+int16_t fs_write(struct fs_file *file, const void *buff, size_t bufflen, uint32_t offs);
+int8_t fs_truncate(struct fs_file *file, uint32_t size);
+int8_t fs_readdir(struct fs_file *file, struct fs_dentry *dentry, uint16_t idx);
+int8_t fs_move(struct fs_file *file, struct fs_file *ndir, const char *name);
+int8_t fs_remove(struct fs_file *file);
+int8_t fs_set_attr(struct fs_file *file, uint8_t attr, uint8_t mask);
+int8_t fs_ioctl(struct fs_file *file, int16_t op, ...);
+int8_t fs_mount(struct fs_ctx *ctx, struct fs_file_op *op, struct dev_blk *cb, struct fs_file *dir);
+int8_t fs_unmount(struct fs_file *mountpoint);
 
 #endif
