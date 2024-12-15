@@ -621,6 +621,7 @@ static int8_t fat_op_mount(struct fs_ctx *ctx, struct fs_file *dir, struct fs_fi
 		uint8_t number_of_fats;
 		uint16_t rootdir_size;
 		uint16_t total_sector_count;
+		uint8_t media_descriptor;
 		uint16_t sectors_per_fat;
 		uint16_t sectors_per_track;
 		uint16_t number_of_heads;
@@ -643,7 +644,8 @@ static int8_t fat_op_mount(struct fs_ctx *ctx, struct fs_file *dir, struct fs_fi
 		(bpb.rootdir_size != 224) ||
 		(bpb.sectors_per_fat != 9) ||
 		(bpb.sectors_per_track != 18) ||
-		(bpb.number_of_heads != 2)) {
+		(bpb.number_of_heads != 2) ||
+		(bpb.total_sector_count != (2 * 18 * 80))) {
 		return -EIO;
 	}
 
