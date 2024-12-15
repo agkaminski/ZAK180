@@ -36,7 +36,7 @@ static int8_t fat_op_set_attr(struct fs_file *file, uint8_t attr, uint8_t mask);
 static int8_t fat_op_mount(struct fs_ctx *ctx, struct fs_file *dir, struct fs_file *root);
 static int8_t fat_op_unmount(struct fs_ctx *ctx);
 
-static const struct fs_file_op fat_op = {
+const struct fs_file_op fat_op = {
 	.open = fat_op_open,
 	.close = fat_op_close,
 	.read = fat_op_read,
