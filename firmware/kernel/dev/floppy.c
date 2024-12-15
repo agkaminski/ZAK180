@@ -20,7 +20,7 @@ struct {
 
 static int blk_floppy_read(off_t offs, void *buff, size_t bufflen);
 static int blk_floppy_write(off_t offs, const void *buff, size_t bufflen);
-static int blk_floppy_sync(off_t offs, size_t len);
+static int blk_floppy_sync(off_t offs, off_t len);
 
 static const struct dev_blk blk_floppy = {
 	.read = blk_floppy_read,
@@ -117,7 +117,7 @@ static int blk_floppy_write(off_t offs, const void *buff, size_t bufflen)
 	return len;
 }
 
-static int blk_floppy_sync(off_t offs, size_t len)
+static int blk_floppy_sync(off_t offs, off_t len)
 {
 	/* TODO when write-back cache is implemented */
 	return 0;
