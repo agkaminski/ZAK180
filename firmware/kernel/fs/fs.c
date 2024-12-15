@@ -7,7 +7,7 @@
 #include <stdarg.h>
 #include <string.h>
 
-#include "fs.h"
+#include "fs/fs.h"
 #include "proc/lock.h"
 #include "lib/errno.h"
 #include "lib/assert.h"
@@ -39,8 +39,7 @@ static int8_t fs_file_put(struct fs_file *file)
 		assert(file->fnext == NULL && file->fprev == NULL);
 
 		if (file->parent != NULL) {
-			struct fs_file *parent = file->parent;
-			LIST_REMOVE(&parent, file, fnext, fprev);
+			LIST_REMOVE(&file->parent, file, fnext, fprev);
 			(void)fs_file_put(file->parent);
 		}
 
@@ -174,7 +173,7 @@ int8_t fs_ioctl(struct fs_file *file, int16_t op, ...)
 	return ret;
 }
 
-int8_t fs_mount(struct fs_ctx *ctx, struct fs_cb *cb, struct fs_file *dir)
+int8_t fs_mount(struct fs_ctx *ctx, struct fs_file_op *op, struct dev_blk *cb, struct fs_file *dir)
 {
 	struct fs_file *rootdir = fs_file_spawn(S_IFDIR | S_IR | S_IW);
 	if (rootdir == NULL) {
@@ -185,6 +184,9 @@ int8_t fs_mount(struct fs_ctx *ctx, struct fs_cb *cb, struct fs_file *dir)
 		/* Mouting rootfs */
 		dir = &common.root;
 	}
+
+	ctx->cb = cb;
+	ctx->op = op;
 
 	lock_lock(&dir->lock);
 	if (dir->mountpoint != NULL) {

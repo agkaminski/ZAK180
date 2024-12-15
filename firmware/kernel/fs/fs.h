@@ -11,11 +11,7 @@
 #include <stdint.h>
 #include <stdarg.h>
 
-struct fs_cb {
-	int (*read_sector)(uint16_t sector, void *buff);
-	int (*write_sector)(uint16_t sector, void *buff);
-};
-
+#include "dev/blk.h"
 #include "proc/lock.h"
 #include "proc/timer.h"
 #include "fs/fat.h"
@@ -43,6 +39,16 @@ struct fs_cb {
 #define FS_NAME_LENGTH_MAX 32
 
 struct fs_file;
+struct fs_ctx;
+
+struct fs_dentry {
+	uint8_t attr;
+	ktime_t ctime;
+	ktime_t atime;
+	ktime_t mttime;
+	uint32_t size;
+	char name[FS_NAME_LENGTH_MAX];
+};
 
 struct fs_file_op {
 	int8_t (*open)(struct fs_file *file, const char *name, struct fs_file *dir, int8_t create, uint8_t attr);
@@ -64,18 +70,9 @@ struct fs_ctx {
 		struct fat_fs fat;
 		int dummy; /* Fix SDCC retardness until more FSes are available */
 	} fs;
-	const struct fs_cb *cb;
+	struct dev_blk *cb;
 	const struct fs_file_op *op;
 	enum { fs_fat, fs_unknown } type;
-};
-
-struct fs_dentry {
-	uint8_t attr;
-	ktime_t ctime;
-	ktime_t atime;
-	ktime_t mttime;
-	uint32_t size;
-	char name[FS_NAME_LENGTH_MAX];
 };
 
 struct fs_file {
