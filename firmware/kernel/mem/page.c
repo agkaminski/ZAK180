@@ -8,6 +8,7 @@
 
 #include "mem/page.h"
 #include "proc/lock.h"
+#include "lib/assert.h"
 
 struct page_element {
 	struct page_element *next;
@@ -224,8 +225,8 @@ uint8_t page_cache_alloc(page_release release_callback)
 
 void page_init(uint8_t start, uint8_t pages)
 {
-	/* No error check, this is certain to be ok. */
 	struct page_element *element = page_element_alloc();
+	assert(element != NULL);
 
 	element->start = start;
 	element->length = pages;
