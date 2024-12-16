@@ -57,20 +57,22 @@ void init_thread(void *arg)
 	/* Init floppy and mount rootfs */
 	while ((ret = blk_floppy_init(&common.floopy)) < 0) {
 		printf("floopy: Init failed (%d), retrying...\r\n", ret);
-		thread_sleep_relative(1000UL * 1000UL);
+		thread_sleep_relative(1000);
 	}
 
-	printf("floopy: Init done, media size: %ld\r\n", common.floopy.size);
+	printf("floopy: Init done, media size: %ld bytes\r\n", common.floopy.size);
+	printf("kernel: Mounting rootfs...\r\n");
 
-	if ((ret = fs_mount(&common.rootfs, &fat_op, &common.floopy, NULL)) < 0) {
+	while ((ret = fs_mount(&common.rootfs, &fat_op, &common.floopy, NULL)) < 0) {
 		printf("fat: Failed to mount rootfs (%d)\r\n", ret);
-		panic();
+		thread_sleep_relative(1000);
 	}
 
 	printf("fat: rootfs has been mounted\r\n");
 
 	while (1) {
-		thread_sleep_relative(1000UL * 1000UL);
+		thread_sleep_relative(1000);
+		printf("alive\r\n");
 	}
 }
 
