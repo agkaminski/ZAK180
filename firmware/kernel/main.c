@@ -32,6 +32,7 @@ static struct {
 	struct fs_ctx rootfs;
 } common;
 
+/* kmalloc memory pool */
 static uint8_t kheap[16 * 1024];
 
 int putchar(int c)
@@ -88,6 +89,7 @@ int main(void)
 	page_init(16, 238);
 	timer_init();
 	thread_init();
+	fs_init();
 
 	kalloc_init(kheap, sizeof(kheap));
 

@@ -61,6 +61,7 @@ static struct fs_file *fs_file_spawn(uint8_t attr)
 		memset(file, 0, sizeof(*file));
 		file->attr = attr;
 		file->nrefs = 1;
+		lock_init(&file->lock);
 	}
 	return file;
 }
@@ -213,4 +214,9 @@ int8_t fs_unmount(struct fs_file *mountpoint)
 	if (mountpoint->mountpoint == NULL) return -EINVAL;
 
 
+}
+
+void fs_init(void)
+{
+	lock_init(&common.lock);
 }

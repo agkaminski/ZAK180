@@ -117,5 +117,6 @@ int8_t fs_set_attr(struct fs_file *file, uint8_t attr, uint8_t mask);
 int8_t fs_ioctl(struct fs_file *file, int16_t op, ...);
 int8_t fs_mount(struct fs_ctx *ctx, struct fs_file_op *op, struct dev_blk *cb, struct fs_file *dir);
 int8_t fs_unmount(struct fs_file *mountpoint);
+void fs_init(void);
 
 #endif
