@@ -37,11 +37,14 @@ struct fat_dentry {
 };
 
 struct fat_file {
-	struct fat_dentry dentry_storage;
-	struct fat_dentry *dentry;
+	uint16_t cluster;
 	uint16_t recent_cluster;
 	uint32_t recent_offs;
 	uint16_t idx;
+};
+
+struct fat_ctx {
+	uint8_t fat_page[2];
 };
 
 #endif

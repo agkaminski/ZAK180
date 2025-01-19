@@ -10,31 +10,14 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdarg.h>
+#include <time.h>
 
 #include "dev/blk.h"
 #include "proc/lock.h"
 #include "proc/timer.h"
 #include "fs/fat.h"
 
-/* File type */
-#define S_IFMT   0x1F
-#define S_IFREG  0x10
-#define S_IFBLK  0x08
-#define S_IFDIR  0x04
-#define S_IFCHR  0x02
-#define S_IFIFO  0x01
-
-/* Permissions */
-#define S_IRWX 0xE0
-#define S_IR   0x80
-#define S_IW   0x40
-#define S_IX   0x20
-
-#define S_ISREG(m)  (((m) & S_IFMT) == S_IFREG)
-#define S_ISBLK(m)  (((m) & S_IFMT) == S_IFBLK)
-#define S_ISDIR(m)  (((m) & S_IFMT) == S_IFDIR)
-#define S_ISCHR(m)  (((m) & S_IFMT) == S_IFCHR)
-#define S_ISFIFO(m) (((m) & S_IFMT) == S_IFIFO)
+#include "include/fcntl.h"
 
 #define FS_NAME_LENGTH_MAX 32
 
@@ -68,6 +51,12 @@ struct fs_file_op {
 };
 
 struct fs_ctx {
+	/* FS characteristic context storage */
+	union  {
+		struct fat_ctx fat;
+		int dummy;
+	};
+
 	struct dev_blk *cb;
 	const struct fs_file_op *op;
 	uint8_t type;
@@ -91,8 +80,9 @@ struct fs_file {
 	struct lock lock;
 
 	/* Children */
-	struct fs_file *fnext;
-	struct fs_file *fprev;
+	struct fs_file *children;
+	struct fs_file *chnext;
+	struct fs_file *chprev;
 
 	/* File type and permissions */
 	uint8_t attr;
@@ -100,12 +90,16 @@ struct fs_file {
 	/* Internal flags */
 	uint8_t flags;
 
+	off_t size;
+
 	/* File system context */
 	struct fs_ctx *ctx;
+
+	char name[];
 };
 
 
-int8_t fs_open(const char *path, struct fs_file **file, int8_t mode, uint8_t attr);
+int8_t fs_open(const char *path, struct fs_file **file, uint8_t mode, uint8_t attr);
 int8_t fs_close(struct fs_file *file);
 int16_t fs_read(struct fs_file *file, void *buff, size_t bufflen, uint32_t offs);
 int16_t fs_write(struct fs_file *file, const void *buff, size_t bufflen, uint32_t offs);

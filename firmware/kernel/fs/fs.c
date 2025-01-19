@@ -18,7 +18,7 @@
 
 static struct {
 	struct lock lock;
-	struct fs_file root;
+	struct fs_file *root;
 } common;
 
 static void fs_file_get(struct fs_file *file)
@@ -36,10 +36,12 @@ static int8_t fs_file_put(struct fs_file *file)
 	if (!file->nrefs) {
 		lock_lock(&file->lock);
 		assert(file->mountpoint == NULL);
-		assert(file->fnext == NULL && file->fprev == NULL);
+		assert(file->chnext == NULL && file->chprev == NULL);
 
 		if (file->parent != NULL) {
-			LIST_REMOVE(&file->parent, file, fnext, fprev);
+			lock_lock(&file->parent->lock);
+			LIST_REMOVE(&file->parent->children, file, chnext, chprev);
+			lock_unlock(&file->parent->lock);
 			(void)fs_file_put(file->parent);
 		}
 
@@ -66,9 +68,77 @@ static struct fs_file *fs_file_spawn(uint8_t attr)
 	return file;
 }
 
-int8_t fs_open(const char *path, struct fs_file **file, int8_t mode, uint8_t attr)
+static int8_t fs_namecmp(const char *path, const struct fs_file *f)
 {
+	for (size_t i = 0; ; ++i) {
+		if (path[i] == '/' || path[i] == '\0') {
+			if (f->name[i] == '\0') {
+				return 0;
+			}
+		}
 
+		if (path[i] != f->name[i]) {
+			return -1;
+		}
+	}
+}
+
+int8_t fs_open(const char *path, struct fs_file **file, uint8_t mode, uint8_t attr)
+{
+	if ((path[0] != '/') || (mode & O_RDWR) && (mode & (O_RDONLY | O_WRONLY))) {
+		return -EINVAL;
+	}
+
+	lock_lock(&common.lock);
+	struct fs_file *dir = common.root;
+	if (dir == NULL) {
+		/* rootfs not mounted */
+		lock_unlock(&common.lock);
+		return -ENOENT;
+	}
+
+	size_t pos = 0;
+
+	while (path[pos] != '\0') {
+		if (!S_ISDIR(dir->attr)) {
+			lock_unlock(&common.lock);
+			return -ENOTDIR;
+		}
+
+		struct fs_file *f = NULL;
+
+		while (path[pos] == '/') ++pos;
+		if (path[pos] == '\0') {
+			break;
+		}
+
+		uint8_t found = 0;
+
+		if (dir->children != NULL) {
+			f = dir->children;
+
+			do {
+				if (!fs_namecmp(&path[pos], f)) {
+					found = 1;
+					break;
+				}
+				f = f->chnext;
+			} while (f != dir->children && !found);
+		}
+
+		if (found) {
+			dir = f;
+			continue;
+		}
+
+		lock_lock(&dir->lock);
+		/* TODO */
+		lock_unlock(&dir->lock);
+	}
+
+	lock_unlock(&common.lock);
+
+	return 0;
 }
 
 int8_t fs_close(struct fs_file *file)
@@ -183,7 +253,7 @@ int8_t fs_mount(struct fs_ctx *ctx, struct fs_file_op *op, struct dev_blk *cb, s
 
 	if (dir == NULL) {
 		/* Mouting rootfs */
-		dir = &common.root;
+		dir = common.root;
 	}
 
 	ctx->cb = cb;
