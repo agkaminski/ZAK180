@@ -246,37 +246,44 @@ int8_t fs_ioctl(struct fs_file *file, int16_t op, ...)
 
 int8_t fs_mount(struct fs_ctx *ctx, struct fs_file_op *op, struct dev_blk *cb, struct fs_file *dir)
 {
+	if (dir == NULL && common.root != NULL) {
+		return -EINVAL;
+	}
+
 	struct fs_file *rootdir = fs_file_spawn(S_IFDIR | S_IR | S_IW);
 	if (rootdir == NULL) {
 		return -ENOMEM;
 	}
 
-	if (dir == NULL) {
-		/* Mouting rootfs */
-		dir = common.root;
-	}
-
 	ctx->cb = cb;
 	ctx->op = op;
 
-	lock_lock(&dir->lock);
-	if (dir->mountpoint != NULL) {
-		lock_unlock(&dir->lock);
-		kfree(rootdir);
-		return -EINVAL;
+	if (dir != NULL) {
+		lock_lock(&dir->lock);
+		if (dir->mountpoint != NULL) {
+			lock_unlock(&dir->lock);
+			kfree(rootdir);
+			return -EINVAL;
+		}
 	}
 
 	int8_t ret = ctx->op->mount(ctx, dir, rootdir);
-	if (ret >= 0) {
-		rootdir->ctx = ctx;
+	if (ret < 0) {
+		kfree(rootdir);
+		return ret;
+	}
+
+	rootdir->ctx = ctx;
+
+	if (dir != NULL) {
 		dir->mountpoint = rootdir;
+		lock_unlock(&dir->lock);
 	}
 	else {
-		kfree(rootdir);
+		common.root = rootdir;
 	}
-	lock_unlock(&dir->lock);
 
-	return ret;
+	return 0;
 }
 
 int8_t fs_unmount(struct fs_file *mountpoint)

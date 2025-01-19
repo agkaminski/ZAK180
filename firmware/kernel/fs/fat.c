@@ -686,9 +686,9 @@ static int8_t fat_op_mount(struct fs_ctx *ctx, struct fs_file *dir, struct fs_fi
 		return -EIO;
 	}
 	fat_buff = mmu_map_scratch(ctx->fat.fat_page[1], NULL);
-	err = ctx->cb->read(FAT12_SECTOR_SIZE, fat_buff, FAT12_SECTOR_SIZE * FAT12_FAT_SIZE - PAGE_SIZE);
+	err = ctx->cb->read(FAT12_SECTOR_SIZE + PAGE_SIZE, fat_buff, FAT12_SECTOR_SIZE * FAT12_FAT_SIZE - PAGE_SIZE);
 	(void)mmu_map_scratch(page_prev, NULL);
-	if (err != PAGE_SIZE) {
+	if (err != (FAT12_SECTOR_SIZE * FAT12_FAT_SIZE - PAGE_SIZE)) {
 		page_free(ctx->fat.fat_page[0], 1);
 		page_free(ctx->fat.fat_page[1], 1);
 		return -EIO;
