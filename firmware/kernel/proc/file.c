@@ -185,6 +185,7 @@ int8_t file_dup2(int8_t oldfd, int8_t newfd)
 	lock_lock(&process->lock);
 
 	if (newfd < 0) {
+		newfd = -EMFILE;
 		for (int8_t ffd = 0; ffd < sizeof(process->fdtable) / sizeof(*process->fdtable); ++ffd) {
 			if (process->fdtable[ffd].ofile == NULL) {
 				newfd = ffd;
@@ -193,13 +194,7 @@ int8_t file_dup2(int8_t oldfd, int8_t newfd)
 		}
 	}
 
-	if (newfd < 0) {
-		lock_unlock(&process->lock);
-		lock_unlock(&common.lock);
-		return -EMFILE;
-	}
-
-	if (newfd != oldfd) {
+	if (newfd > 0 && newfd != oldfd) {
 		(void)_file_close_one(process, newfd);
 
 		process->fdtable[newfd] = process->fdtable[oldfd];
