@@ -60,7 +60,7 @@ KiCAD project of the computer's PCB.
 
 ### vga
 
-HDL of the VGA timing generator implemented in a XC9535 CPLD, tool to generate
+HDL of the VGA timing generator implemented in a XC9536 CPLD, tool to generate
 font ROM.
 
 ### schematic.pdf
