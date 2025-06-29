@@ -36,7 +36,7 @@ end
 // blanking
 always @(posedge pclk, negedge rst_n) begin
 	if (~rst_n)
-		vblank_n <= 1;
+		vblank <= 1;
 	else begin
 		if (row_i >= 480)
 			vblank <= 1;
@@ -62,9 +62,9 @@ always @(posedge pclk, negedge rst_n) begin
 		hsync <= 0;
 	else begin
 		if (col_i >= (640 + 16 + 8 - 1) && col_i < (640 + 16 + 8 + 96 - 1))
-			hsync <= 1;
-		else
 			hsync <= 0;
+		else
+			hsync <= 1;
 	end
 end
 
@@ -74,9 +74,9 @@ always @(posedge pclk, negedge rst_n) begin
 		vsync <= 0;
 	else begin
 		if (row_i >= (480 + 10) && row_i < (480 + 10 + 2))
-			vsync <= 1;
-		else
 			vsync <= 0;
+		else
+			vsync <= 1;
 	end
 end
 

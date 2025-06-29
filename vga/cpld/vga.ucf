@@ -2,6 +2,7 @@
 
 #PACE: Start of PACE I/O Pin Assignments
 NET "blank"  LOC = "P3"  ; 
+NET "vblank"  LOC = "P19"  ; 
 NET "col<3>"  LOC = "P18"  ; 
 NET "col<4>"  LOC = "P14"  ; 
 NET "col<5>"  LOC = "P13"  ; 
@@ -30,7 +31,6 @@ NET "scroll<2>"  LOC = "P43"  ;
 NET "scroll<3>"  LOC = "P44"  ;
 NET "scroll<4>"  LOC = "P24"  ;
 NET "scroll<5>"  LOC = "P38"  ;
-NET "vblank"  LOC = "P14"  ;
 
 #PACE: Start of PACE Area Constraints
 
